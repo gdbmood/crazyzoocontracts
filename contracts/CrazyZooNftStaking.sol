@@ -136,9 +136,9 @@ contract CrazyZooNftStaking is Ownable, ReentrancyGuard {
     using SafeERC20 for IFeeToken;
 
     // Interfaces for ERC20 and ERC721
-    IFeeToken public immutable feeToken;
-    IRewardToken public immutable rewardsToken;
-    INftCollection public immutable nftCollection;
+    IFeeToken public immutable feeToken; //zooToken
+    IRewardToken public immutable rewardsToken; 
+    INftCollection public immutable nftCollection;  //crazyzooNFT
 
     uint256 public immutable lemurMinId = 1;
     uint256 public immutable lemurMaxId = 2222;
@@ -274,7 +274,7 @@ contract CrazyZooNftStaking is Ownable, ReentrancyGuard {
         //This line retrieves the price of the NFT with the given index (nftIndex) from the nftPrices array and assigns it to a variable called nftPriceToPay. Note that the nftPrices array is 0-indexed, so we need to subtract 1 from nftIndex.
         uint256 nftPriceToPay = nftPrices[nftIndex - 1];
 
-        // This line checks whether the feeToken contract has been authorized to transfer at least nftPriceToPay tokens by the address calling the function (_msgSender()). If the allowance is less than nftPriceToPay, the function will revert with the error message "Approve Staking contract".
+        //The function requires that the caller(msg.sender) has approved the staking contract to spend at least the amount of tokens required to purchase the NFT.
         require(
             feeToken.allowance(_msgSender(), address(this)) >= nftPriceToPay,
             "Approve Staking contract"
@@ -284,7 +284,10 @@ contract CrazyZooNftStaking is Ownable, ReentrancyGuard {
         // Deduct tax
         feeToken.transferFrom(_msgSender(), address(this), nftPriceToPay);
 
-        // This line calculates the referral reward amount for the given NFT purchase. It multiplies nftPriceToPay by the sum of the referral taxes (referral1Tax + referral2Tax + referral3Tax), and then divides the result by 1000 to convert it from basis points to a percentage. The resulting value is assigned to a variable called refReward.
+        //This line calculates the referral reward amount for the given NFT purchase. 
+        //It multiplies nftPriceToPay by the sum of the referral taxes (referral1Tax + referral2Tax + referral3Tax), and then divides the result by 1000 to convert it from basis points to a percentage. The resulting value is assigned to a variable called refReward.
+        // suppose the NFT price to be paid is 10 tokens and the sum of referral taxes is 50 basis points (0.5%). In that case, the calculation will be (10 * 50) / 1000 = 0.5 tokens, meaning that the referrers will receive a reward of 0.5 tokens.
+
         uint256 refReward = (nftPriceToPay *
             (referral1Tax + referral2Tax + referral3Tax)) / 1000;
 
