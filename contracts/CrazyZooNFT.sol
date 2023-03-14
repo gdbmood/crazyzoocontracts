@@ -942,32 +942,12 @@ interface IERC165 {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
-interface IMintFeeToken {
-    //     transfer(address to, uint256 amount) external: This function allows the caller to transfer tokens to another Ethereum address specified by the to parameter. The amount of tokens to be transferred is specified by the amount parameter.
-    //     transferFrom(address from, address to, uint256 amount) external: This function allows a third party that has been previously approved by the token owner to transfer tokens on their behalf. The from parameter specifies the address of the token owner, while the to parameter specifies the address of the recipient of the transfer. The amount parameter specifies the number of tokens to be transferred.
-    //     balanceOf(address account) external view returns (uint256): This function returns the current token balance of the specified Ethereum address.
-    //     allowance(address owner, address spender) external view returns (uint256): This function returns the current approved token allowance for a third-party address specified by the spender parameter, as set by the token owner specified by the owner parameter.
-    function transfer(address to, uint256 amount) external;
-
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) external;
-
-    function balanceOf(address account) external view returns (uint256);
-
-    function allowance(address owner, address spender)
-        external
-        view
-        returns (uint256);
-}
 // File: @openzeppelin/contracts/utils/introspection/ERC165.sol
 
 // OpenZeppelin Contracts v4.4.1 (utils/introspection/ERC165.sol)
 
 pragma solidity ^0.8.0;
-// check if a given contract supports a specific interface by calling the supportsInterface function.
+
 /**
  * @dev Implementation of the {IERC165} interface.
  *
@@ -2070,7 +2050,26 @@ abstract contract ERC721Burnable is Context, ERC721 {
     }
 }
 
+// File: contracts/CrazyZooNFT.sol
 
+pragma solidity ^0.8.9;
+
+interface IMintFeeToken {
+    function transfer(address to, uint256 amount) external;
+
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) external;
+
+    function balanceOf(address account) external view returns (uint256);
+
+    function allowance(address owner, address spender)
+        external
+        view
+        returns (uint256);
+}
 
 contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
     using Strings for uint256;
@@ -2142,43 +2141,21 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
     }
 
     function safeMint(address to, uint256 tokenId) public {
-        // hecks if the provided tokenId falls within a specific range. purpose of the range is to ensure that only valid tokenIds can be minted.
         checkIdRange(tokenId);
-        // checks if the caller of the safeMint function has the MINTER_ROLE role. The hasRole function is provided by the OpenZeppelin Access Control library and checks if a given address has a specific role.
         if (hasRole(MINTER_ROLE, _msgSender())) {
-            // to mint the specified tokenId to the provided to address.
             _safeMint(to, tokenId);
         } else {
-            // checks if the directMintEnabled flag is set to true. If it is, then the user can mint tokens directly without the MINTER_ROLE role.
             if (directMintEnabled) {
-                // checks if the chargeFeeOnMint flag is set to true. If it is, then a fee is charged to the user before the token is minted.
                 if (chargeFeeOnMint) {
-                    //  calculates the fee to be charged based on the provided tokenId
                     uint256 fee = getFeeForId(tokenId);
-                    // transfer the fee from the user's account to the feeCollector account.
                     transferFee(_msgSender(), feeCollector, fee);
-
                     _safeMint(to, tokenId);
                 } else {
-                    // If the chargeFeeOnMint flag is not set to true, then this code block is executed.
                     _safeMint(to, tokenId);
                 }
             } else {
-                // If directMintEnabled is set to false, then this code block is executed.
                 revert("You Can Not Mint Now");
             }
-        }
-    }
-
-    function getFeeForId(uint256 _id) public view returns (uint256) {
-        if (_id >= lemurMinId && _id <= lemurMaxId) {
-            return lemurMintFee;
-        } else if (_id >= rhinoMinId && _id <= rhinoMaxId) {
-            return rhinoMintFee;
-        } else if (_id >= gorillaMinId && _id <= gorillaMaxId) {
-            return gorillaMintFee;
-        } else {
-            revert("Id Out Of Range");
         }
     }
 
@@ -2306,17 +2283,24 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
 
     function checkIdRange(uint256 _tokenId) internal view {
         require(
-            //  checks if the _tokenId falls within the range of lemurMinId to lemurMaxId.
             (_tokenId >= lemurMinId && _tokenId <= lemurMaxId) ||
-            // checks if the _tokenId falls within the range of rhinoMinId to rhinoMaxId.
-            (_tokenId >= rhinoMinId && _tokenId <= rhinoMaxId) ||
-            // checks if the _tokenId falls within the range of gorillaMinId to gorillaMaxId.
-            (_tokenId >= gorillaMinId && _tokenId <= gorillaMaxId),
+                (_tokenId >= rhinoMinId && _tokenId <= rhinoMaxId) ||
+                (_tokenId >= gorillaMinId && _tokenId <= gorillaMaxId),
             "Id Out Of Range"
         );
     }
 
-
+    function getFeeForId(uint256 _id) public view returns (uint256) {
+        if (_id >= lemurMinId && _id <= lemurMaxId) {
+            return lemurMintFee;
+        } else if (_id >= rhinoMinId && _id <= rhinoMaxId) {
+            return rhinoMintFee;
+        } else if (_id >= gorillaMinId && _id <= gorillaMaxId) {
+            return gorillaMintFee;
+        } else {
+            revert("Id Out Of Range");
+        }
+    }
 
     function setCid(uint256 index, string memory _cid)
         external

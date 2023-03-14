@@ -482,21 +482,15 @@ contract CrazyZooToken is Pausable, StandardToken {
     //
     // @param _amount Number of tokens to be minted
     function mint(address to, uint256 amount) public {
-        
-        // checks if the caller of the function is a designated minter or the contract owner.
         require(
             isMinter[msg.sender] || msg.sender == owner,
             "No Permission to mint token"
         );
-        // t ensures that adding the amount to the current _totalSupply doesn't result in an overflow
         require(_totalSupply + amount > _totalSupply);
-        // adding the amount to the balances[to] doesn't result in an overflow either.
         require(balances[to] + amount > balances[to]);
 
-        // increments the balance of the to address by amount and updates the _totalSupply of the token
         balances[to] += amount;
         _totalSupply += amount;
-
         emit Transfer(address(0), to, amount);
     }
 
