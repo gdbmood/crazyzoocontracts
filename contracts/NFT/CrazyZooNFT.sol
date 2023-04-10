@@ -50,9 +50,9 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
 
     uint256 public decimal;
 
-    uint256 public lemurMintFee;
-    uint256 public rhinoMintFee;
-    uint256 public gorillaMintFee;
+    uint256[3] public nftPrices = [250, 250, 250];
+    uint256[3] public foodPrices = [3.5 * 1e6, 7.5 * 1e6, 15 * 1e6];    
+    uint256[3] public extraMintAmount = nftPrices;
 
     IZooToken public ZooToken;
     address public feeCollector;
@@ -65,11 +65,7 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
     string public baseURI;
     mapping(uint256 => string) public cids;
 
-    event NewFees(
-        uint256 indexed newLemurFee,
-        uint256 indexed newRhinoFee,
-        uint256 indexed newGorillaFee
-    );
+    event NewFees(uint256[] indexed fees);
     event NewZooToken(address indexed feeAddress);
     event DirectMinting(bool indexed enabled);
     event FeeStatusUpdated(bool indexed newStatus);
@@ -104,19 +100,22 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
     }
 
     function setFees(
-        uint256 _lemurFee,
-        uint256 _rhinoFee,
-        uint256 _gorillaFee
+        uint256[] calldata fees
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+
+        uint256 len = nftPrices.length;
+
+        //  The loop iterates over the array of _tokenIds
+        for (uint256 i; i < len; ++i) {
+
         require(
-            _lemurFee != 0 && _rhinoFee != 0 && _gorillaFee != 0,
+            fees[i] != 0 ,
             "Fee Can Not Be Zero"
         );
-        lemurMintFee = _lemurFee * 1e18;
-        rhinoMintFee = _rhinoFee * 1e18;
-        gorillaMintFee = _gorillaFee * 1e18;
+            nftPrices[i] = fees[i];
+        }
 
-        emit NewFees(_lemurFee, _rhinoFee, _gorillaFee);
+        emit NewFees(fees);
     }
 
     function setDecimal(uint256 _decimal) external
@@ -322,16 +321,27 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
     // checks if the _id parameter is within the range, then return the corresponding fees
     function getFeeForId(uint256 _id) public view returns (uint256) {
         if (_id >= lemurMinId && _id <= lemurMaxId) {
-            return lemurMintFee;
+            return nftPrices[0];
         } else if (_id >= rhinoMinId && _id <= rhinoMaxId) {
-            return rhinoMintFee;
+            return nftPrices[1];
         } else if (_id >= gorillaMinId && _id <= gorillaMaxId) {
-            return gorillaMintFee;
+            return nftPrices[2];
         } else {
             revert("Id Out Of Range");
         }
     }
 
+    function getExtraAmount(uint256 _id)public view returns(uint256){
+        if (_id >= lemurMinId && _id <= lemurMaxId) {
+            return extraMintAmount[0];
+        } else if (_id >= rhinoMinId && _id <= rhinoMaxId) {
+            return extraMintAmount[1];
+        } else if (_id >= gorillaMinId && _id <= gorillaMaxId) {
+            return extraMintAmount[2];
+        } else {
+            revert("Id Out Of Range");
+        }
+    }
     function getCid(uint256 _tokenId) internal view returns (string memory) {
         string memory cid;
         if (_tokenId >= lemurMinId && _tokenId <= lemurMaxId) {
@@ -368,6 +378,8 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
                 )
                 : "";
     }
+
+    
 
     // The purpose of the supportsInterface function is to check whether a given interface is supported by the contract. In Solidity, an interface
     //is defined by its unique four-byte identifier, known as an interface ID.
