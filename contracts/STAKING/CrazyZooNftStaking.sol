@@ -155,7 +155,7 @@ contract Staking {
     mapping(uint256 => address) public stakerAddress;
     mapping(uint256 => bool) public stakedBefore;
 
-    uint256 public whalesWithdrawalExtraFee = 5;
+
 
     // food price
     uint256[3] public foodPrices = [3.5 * 1e18, 7.5 * 1e18, 15 * 1e18];
@@ -168,8 +168,11 @@ contract Staking {
     uint256[3] public rewardDays =  [500 days, 500 days, 500 days];
 
     address public owner;
+    uint256 public ZooTokenDecimal=1e6;
+    uint256 public whalesWithdrawalExtraFee = 2500000;
 
-    uint256 public constant MULTIPLIER = 10e8;
+
+    uint256 public constant MULTIPLIER = 10e6;
 
     bool private locked;
     modifier nonReentrant() {
@@ -373,50 +376,29 @@ contract Staking {
             _USDCToken = _swapAddress;
     }
 
-    function getWhaleFee(uint256 _userFunds) internal view returns (uint256) {
+    function getWhaleFee(uint256 _userFunds) public view returns (uint256) {
         uint256 rewardTokenBalance = ZooToken.balanceOf(address(this));
-        uint256 ratio = (_userFunds * MULTIPLIER) / rewardTokenBalance;
-        if (ratio < (1 * MULTIPLIER) / 100) {
+        if (_userFunds < ((1 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)) {
             return 0;
-        } else if (
-            ratio >= ((1 * MULTIPLIER) / 100) &&
-            ratio < ((2 * MULTIPLIER) / 100)
-        ) {
-            return 1 * whalesWithdrawalExtraFee;
-        } else if (
-            ratio >= ((2 * MULTIPLIER) / 100) &&
-            ratio < ((3 * MULTIPLIER) / 100)
-        ) {
-            return 2 * whalesWithdrawalExtraFee;
-        } else if (
-            ratio >= ((3 * MULTIPLIER) / 100) &&
-            ratio < ((4 * MULTIPLIER) / 100)
-        ) {
-            return 3 * whalesWithdrawalExtraFee;
-        } else if (
-            ratio >= ((4 * MULTIPLIER) / 100) &&
-            ratio < ((5 * MULTIPLIER) / 100)
-        ) {
-            return 4 * whalesWithdrawalExtraFee;
-        } else if (
-            ratio >= ((5 * MULTIPLIER) / 100) &&
-            ratio < ((6 * MULTIPLIER) / 100)
-        ) {
-            return 5 * whalesWithdrawalExtraFee;
-        } else if (
-            ratio >= ((6 * MULTIPLIER) / 100) &&
-            ratio < ((7 * MULTIPLIER) / 100)
-        ) {
-            return 6 * whalesWithdrawalExtraFee;
-        } else if (
-            ratio >= ((7 * MULTIPLIER) / 100) &&
-            ratio < ((8 * MULTIPLIER) / 100)
-        ) {
-            return 7 * whalesWithdrawalExtraFee;
+        } else if (_userFunds < ((2 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)) {
+            return (_userFunds / 100) * whalesWithdrawalExtraFee/ZooTokenDecimal;
+        } else if (_userFunds < ((3 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)){
+            return (_userFunds / 100) * (whalesWithdrawalExtraFee*2)/ZooTokenDecimal;
+        } else if (_userFunds < ((4 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)){
+            return (_userFunds / 100) * (whalesWithdrawalExtraFee*3)/ZooTokenDecimal;
+        } else if (_userFunds < ((5 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)){
+            return (_userFunds / 100) * (whalesWithdrawalExtraFee*4)/ZooTokenDecimal;
+        } else if (_userFunds < ((6 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)) {
+            return (_userFunds / 100) * (whalesWithdrawalExtraFee*5)/ZooTokenDecimal;
+        } else if (_userFunds < ((7 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)) {
+            return (_userFunds / 100) * (whalesWithdrawalExtraFee*6)/ZooTokenDecimal;
+        }else if (_userFunds < ((8 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)) {
+            return (_userFunds / 100) * (whalesWithdrawalExtraFee*7)/ZooTokenDecimal;
         } else {
-            return 8 * whalesWithdrawalExtraFee;
+            return (_userFunds / 100) * (whalesWithdrawalExtraFee*8)/ZooTokenDecimal;
         }
     }
+    // 1600000
 
     function withdraw(uint256[] calldata _tokenIds) external nonReentrant {
         Staker storage __staker = stakers[msg.sender];
@@ -429,9 +411,8 @@ contract Staking {
         // Check if whale txn and deduce tax accordingly
         uint256 whaleFee = getWhaleFee(userFunds);
         uint256 len = _tokenIds.length;
-        __staker.unclaimedRewards += (rewards -
-            ((basicWithdrawalFee * rewards * len) / 100) -
-            ((whaleFee * rewards * len) / 100));
+        __staker.unclaimedRewards += rewards - (whaleFee * len);
+
 
         for (uint256 i; i < len; ++i) {
             require(stakerAddress[_tokenIds[i]] == msg.sender);
@@ -445,16 +426,18 @@ contract Staking {
 
         __staker.amountStaked -= len;
         __staker.timeOfLastUpdate = block.timestamp;
+        
+        //poping out tokens from user's tokens from stakersArray if it exist.
         if (__staker.amountStaked == 0) {
             for (uint256 i; i < stakersArray.length; ++i) {
                 if (stakersArray[i] == msg.sender) {
-                    stakersArray[i] = stakersArray[stakersArray.length - 1];
+                    stakersArray[i] = stakersArray[stakersArray.length - 1]; //swapping
                     stakersArray.pop();
                 }
             }
         }
 
-        emit Withdrawn(_tokenIds, _msgSender());
+        emit Withdrawn(_tokenIds, msg.sender);
     }
 
 }
