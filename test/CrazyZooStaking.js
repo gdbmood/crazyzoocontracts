@@ -248,41 +248,43 @@ describe("CrazyZooStaking contract", function () {
     expect(_calculateRewards_after_setRewardsPerDay).to.equal(0);
 
   });
+
+  it("isHungry should return false when lastTimeFed is less than 30 days.", async function () {
+    const [owner,USDCadd,SWAPadd,user1,user2] = await ethers.getSigners();
+  
+    const _token = await ethers.getContractFactory("CrazyZooToken");
+    const _nft = await ethers.getContractFactory("CrazyZooNFT");
+    const _testing = await ethers.getContractFactory("TestingStakingContract");
+    
+    const ZooToken = await _token.deploy();
+    const NFT = await _nft.deploy();
+    const TestingStakingContract = await _testing.deploy(NFT.address,USDCadd.address,SWAPadd.address,ZooToken.address,owner.address);
+    
+    await TestingStakingContract._1_testIsHungry(user1.address);
+    const Ishungry = await TestingStakingContract.isHungry(0);
+    expect(Ishungry).to.equal(false);
+  
+  });
+  
+  it("isHungry should return true when lastTimeFed is greater than 30 days.", async function () {
+    const [owner,USDCadd,SWAPadd,user1,user2] = await ethers.getSigners();
+  
+    const _token = await ethers.getContractFactory("CrazyZooToken");
+    const _nft = await ethers.getContractFactory("CrazyZooNFT");
+    const _testing = await ethers.getContractFactory("TestingStakingContract");
+    
+    const ZooToken = await _token.deploy();
+    const NFT = await _nft.deploy();
+    const TestingStakingContract = await _testing.deploy(NFT.address,USDCadd.address,SWAPadd.address,ZooToken.address,owner.address);
+    
+    await TestingStakingContract._2_testIsHungry(user1.address);
+    const Ishungry = await TestingStakingContract.isHungry(0);
+    expect(Ishungry).to.equal(true);
+  
+  });
 })
 
-it("isHungry should return false when lastTimeFed is less than 30 days.", async function () {
-  const [owner,USDCadd,SWAPadd,user1,user2] = await ethers.getSigners();
 
-  const _token = await ethers.getContractFactory("CrazyZooToken");
-  const _nft = await ethers.getContractFactory("CrazyZooNFT");
-  const _testing = await ethers.getContractFactory("TestingStakingContract");
-  
-  const ZooToken = await _token.deploy();
-  const NFT = await _nft.deploy();
-  const TestingStakingContract = await _testing.deploy(NFT.address,USDCadd.address,SWAPadd.address,ZooToken.address,owner.address);
-  
-  await TestingStakingContract._1_testIsHungry(user1.address);
-  const Ishungry = await TestingStakingContract.isHungry(0);
-  expect(Ishungry).to.equal(false);
-
-});
-
-it("isHungry should return true when lastTimeFed is greater than 30 days.", async function () {
-  const [owner,USDCadd,SWAPadd,user1,user2] = await ethers.getSigners();
-
-  const _token = await ethers.getContractFactory("CrazyZooToken");
-  const _nft = await ethers.getContractFactory("CrazyZooNFT");
-  const _testing = await ethers.getContractFactory("TestingStakingContract");
-  
-  const ZooToken = await _token.deploy();
-  const NFT = await _nft.deploy();
-  const TestingStakingContract = await _testing.deploy(NFT.address,USDCadd.address,SWAPadd.address,ZooToken.address,owner.address);
-  
-  await TestingStakingContract._2_testIsHungry(user1.address);
-  const Ishungry = await TestingStakingContract.isHungry(0);
-  expect(Ishungry).to.equal(true);
-
-});
 // it("", async function () {
 //     const [owner] = await ethers.getSigners();
 
