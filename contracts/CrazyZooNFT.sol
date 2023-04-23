@@ -35,22 +35,21 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
     using Strings for uint256;
 
 
-    uint256 public lemurMinId = 1;
-    uint256 public lemurMaxId = 2222;
+    uint256 public lemurMinId ;
+    uint256 public lemurMaxId ;
 
-    uint256 public rhinoMinId = 2223;
-    uint256 public rhinoMaxId = 4444;
+    uint256 public rhinoMinId ;
+    uint256 public rhinoMaxId ;
 
-    uint256 public gorillaMinId = 4445;
-    uint256 public gorillaMaxId = 6666;
+    uint256 public gorillaMinId ;
+    uint256 public gorillaMaxId ;
 
-    uint256 public lemurIdCounter = lemurMinId;
-    uint256 public rhinoIdCounter = rhinoMinId;
-    uint256 public gorillaIdCounter = gorillaMinId;
+    uint256 public lemurIdCounter ;
+    uint256 public rhinoIdCounter ;
+    uint256 public gorillaIdCounter ;
 
-    uint256 public decimal;
 
-    uint256[3] public nftPrices = [250, 250, 250];
+    uint256[3] public nftPrices = [250000000, 250000000, 250000000];
     uint256[3] public foodPrices = [3.5 * 1e6, 7.5 * 1e6, 15 * 1e6];    
     uint256[3] public extraMintAmount = nftPrices;
 
@@ -71,7 +70,6 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
     event FeeStatusUpdated(bool indexed newStatus);
     event NewFeeCollector(address indexed newFeeCollector);
     event NewCID(uint256 indexed index, string indexed newCid);
-    event NewDecimal(uint256 indexed _decimal);
     event TransferFee(address indexed sender,address indexed feeCollector,uint256 indexed fee);
     event mint(address indexed to, uint256 indexed currentId);
 
@@ -81,22 +79,28 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
         _grantRole(MINTER_ROLE, msg.sender);
     }
 
-    function setRange(uint256 min, uint256 diff) public returns (bool) {
+    function setRange(uint256 min, uint256 diff) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(min > 0, "min should be greater than 0");
         require(
             diff > min,
             "number of nfts in a single class should be greater than minimum"
         );
+        require(lemurIdCounter < 1);
+        require(rhinoIdCounter < 1);
+        require(gorillaIdCounter < 1);
         lemurMinId = min;
         lemurMaxId = diff;
+        lemurIdCounter = lemurMinId;
 
         rhinoMinId = lemurMaxId + 1;
         rhinoMaxId = diff * 2;
+        rhinoIdCounter = rhinoMinId;
 
         gorillaMinId = rhinoMaxId + 1;
         gorillaMaxId = diff * 3;
+        gorillaIdCounter = gorillaMinId;
+        
 
-        return true;
     }
 
     function setFees(
@@ -118,13 +122,6 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
         emit NewFees(fees);
     }
 
-    function setDecimal(uint256 _decimal) external
-        onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_decimal >= 10, "should be atleast 1 decimal");
-        decimal = _decimal;
-        emit NewDecimal(_decimal);
-    }
-
     function setZooToken(address newToken)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
@@ -142,9 +139,25 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
         emit DirectMinting(setValue);
     }
 
-    function changeMintFeeStatus() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        chargeFeeOnMint = !chargeFeeOnMint;
+    function getDirectMinting()
+        external
+        view
+        returns(bool)
+    {
+        return directMintEnabled;
+    }
+
+
+    function setMintFeeStatus(bool setValue) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        chargeFeeOnMint = setValue;
         emit FeeStatusUpdated(chargeFeeOnMint);
+    }
+
+      function getMintFeeStatus()  
+        external
+        view
+        returns(bool) {
+        return chargeFeeOnMint;
     }
 
     function setFeeCollector(address _newCollector)
@@ -159,11 +172,27 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
         emit NewFeeCollector(_newCollector);
     }
 
+    function getFeeCollector()
+        external
+        view
+        returns(address)
+    {
+        return feeCollector;   
+    }
+
     function setBaseURI(string memory _uri)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
         baseURI = _uri;
+    }
+
+    function getBaseURI()
+        public
+        view
+        returns(string memory)
+    {
+        return baseURI;
     }
 
     function setCid(uint256 index, string memory _cid)
@@ -197,11 +226,8 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
 
                     //usdc transfer
                     // transfer the fee from the user's account to the feeCollector account.
-                    emit TransferFee(msg.sender, feeCollector, fee);
-                    console.log("feeCollector", feeCollector);
-                    console.log("msg.sender", msg.sender);
-                    console.log("fee", fee);
                     transferFee(msg.sender, feeCollector, fee);
+                    emit TransferFee(msg.sender, feeCollector, fee);
 
                     _safeMint(to, tokenId);
                 } else {
@@ -218,15 +244,15 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
     function mintLemur(address to) public {
         require(to != address(0), "Can Not Mint To Zero Address");
         require(
-            lemurIdCounter < gorillaMaxId,
-            "No more Gorillas available for minting"
+            lemurIdCounter <= lemurMaxId,
+            "No more Lemurs available for minting"
         );
 
         uint256 currentId = lemurIdCounter;
 
         require(
-            currentId >= gorillaMinId && currentId <= gorillaMaxId,
-            "Gorilla Id Out Of Range"
+            currentId >= lemurMinId && currentId <= lemurMaxId,
+            "Lemur Id Out Of Range"
         );
 
         safeMint(to, currentId);
@@ -236,15 +262,15 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
     function mintRhino(address to) public {
         require(to != address(0), "Can Not Mint To Zero Address");
         require(
-            rhinoIdCounter < gorillaMaxId,
-            "No more Gorillas available for minting"
+            rhinoIdCounter <= rhinoMaxId,
+            "No more Rhinos available for minting"
         );
 
         uint256 currentId = rhinoIdCounter;
 
         require(
-            currentId >= gorillaMinId && currentId <= gorillaMaxId,
-            "Gorilla Id Out Of Range"
+            currentId >= rhinoMinId && currentId <= rhinoMaxId,
+            "Rhino Id Out Of Range"
         );
 
         safeMint(to, currentId);
@@ -255,7 +281,7 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
     function mintGorilla(address to) public {
         require(to != address(0), "Can Not Mint To Zero Address");
         require(
-            gorillaIdCounter < gorillaMaxId,
+            gorillaIdCounter <= gorillaMaxId,
             "No more Gorillas available for minting"
         );
 
@@ -269,8 +295,6 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
         // emit mint(to, currentId);
         safeMint(to, currentId);
         gorillaIdCounter = gorillaIdCounter + 1;
-        console.log("feeCollector", feeCollector);
-        console.log("msg.sender", msg.sender);
     }
 
     function transferFee(
@@ -364,7 +388,7 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
         _requireMinted(_tokenId);
         string memory tokenCid = getCid(_tokenId);
 
-        string memory baseURI_ = _baseURI();
+        string memory baseURI_ = getBaseURI();
         return
             (bytes(baseURI).length > 0 && bytes(tokenCid).length > 0)
                 ? string(

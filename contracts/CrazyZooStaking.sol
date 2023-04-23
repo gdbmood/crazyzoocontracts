@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
-// https://docs.chain.link/data-feeds/price-feeds/addresses/?network=polygon
-//batchwise
 pragma solidity >=0.7.0 <0.9.0;
 
-import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+// import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 interface INftCollection is IERC721 {
@@ -17,7 +15,7 @@ interface INftCollection is IERC721 {
 
     function getFeeForId(uint256 _id) external view returns (uint256);
 
-    function getExtraAmount(uint256 _id)external view returns(uint256);
+    function getExtraAmount(uint256 _id) external view returns (uint256);
 }
 
 interface IERC20USDC {
@@ -33,7 +31,11 @@ interface IERC20USDC {
      * @dev Emitted when the allowance of a `spender` for an `owner` is set by
      * a call to {approve}. `value` is the new allowance.
      */
-    event Approval(address indexed owner, address indexed spender, uint256 value);
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 value
+    );
 
     /**
      * @dev Returns the amount of tokens in existence.
@@ -61,7 +63,10 @@ interface IERC20USDC {
      *
      * This value changes when {approve} or {transferFrom} are called.
      */
-    function allowance(address owner, address spender) external view returns (uint256);
+    function allowance(
+        address owner,
+        address spender
+    ) external view returns (uint256);
 
     /**
      * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
@@ -88,26 +93,30 @@ interface IERC20USDC {
      *
      * Emits a {Transfer} event.
      */
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) external returns (bool);
 }
+
 interface ISingleSwap {
-    function SellingUSDCToken(uint256 amountIn)external returns (uint256 amountOut);
+    function SellingUSDCToken(
+        uint256 amountIn
+    ) external returns (uint256 amountOut);
 }
+
 interface IZooToken {
-    function allowance(address owner, address spender)
-        external
-        view
-        returns (uint256);
+    function allowance(
+        address owner,
+        address spender
+    ) external view returns (uint256);
 
     function approve(address spender, uint256 amount) external;
 
     function mint(address to, uint256 amount) external;
 
-    function transferFrom(
-        address from,
-        address to,
-        uint256 value
-    ) external;
+    function transferFrom(address from, address to, uint256 value) external;
 
     function transfer(address to, uint256 amount) external;
 
@@ -116,17 +125,14 @@ interface IZooToken {
     function totalSupply() external view returns (uint256);
 }
 
-contract Staking {
-
-    INftCollection public immutable nftCollection;
-     
-    ISingleSwap public immutable swap;
-    
+contract CrazyZooStaking {
     address public _USDCToken;
+
+    INftCollection public nftCollection;
+    ISingleSwap public swap;
+    IZooToken public ZooToken;
     IERC20USDC public immutable USDCToken = IERC20USDC(_USDCToken);
 
-    IZooToken public immutable ZooToken;
-    
     //staking storage
     struct StakedNft {
         uint256 id;
@@ -155,24 +161,19 @@ contract Staking {
     mapping(uint256 => address) public stakerAddress;
     mapping(uint256 => bool) public stakedBefore;
 
-
-
     // food price
     uint256[3] public foodPrices = [3.5 * 1e18, 7.5 * 1e18, 15 * 1e18];
 
     //rewards
     // 0 for Lemur, 1 for Rhino, 2 for Gorilla
     // 0.6 = 6/10, 0.7 = 7/10, 0.8 = 8/10
-    uint256[3] public rewardsPerDay = [6, 7, 8];
+    uint256[3] public rewardsPerDay = [600000, 700000, 800000];
     // 0 for Lemur, 1 for Rhino, 2 for Gorilla
-    uint256[3] public rewardDays =  [500 days, 500 days, 500 days];
+    uint256[3] public rewardDays = [500 days, 500 days, 500 days];
 
     address public owner;
-    uint256 public ZooTokenDecimal=1e6;
+    uint256 public ZooTokenDecimal = 1000000;
     uint256 public whalesWithdrawalExtraFee = 2500000;
-
-
-    uint256 public constant MULTIPLIER = 10e6;
 
     bool private locked;
     modifier nonReentrant() {
@@ -188,10 +189,10 @@ contract Staking {
 
     constructor(
         INftCollection _nftCollection,
-        address  __USDCToken,
+        address __USDCToken,
         ISingleSwap _SingleSwap,
-        address _owner,
-        IZooToken _ZooToken
+        IZooToken _ZooToken,
+        address _owner
     ) {
         nftCollection = _nftCollection;
         _USDCToken = __USDCToken;
@@ -199,6 +200,9 @@ contract Staking {
         owner = _owner;
         ZooToken = _ZooToken;
     }
+
+    event Withdrawn(uint256[] indexed _tokenIds, address _to);
+    event NewRewardsPerDay(uint256 _nftIndex, uint256 _newValue);
 
     // // TokenId parameter in the feedYourAnimal function is used to specify the ID of the NFT that the user wants to feed
     function feedYourAnimal(uint256 _tokenId) external nonReentrant {
@@ -225,7 +229,6 @@ contract Staking {
         for (uint256 i; i < len; i++) {
             // checks if the _tokenId matches with the id of the StakedNft struct in the current iteration.
             if (userStakedNfts[i].id == _tokenId) {
-
                 //  increments the feedCounter property of the StakedNft struct by 1.
                 userStakedNfts[i].feedCounter += 1;
 
@@ -239,42 +242,74 @@ contract Staking {
                 return;
             }
         }
-    }    
-    
-    function calculateRewards(address staker_) public view returns (uint256) {
+    }
 
-        // creates a memory variable staker of type Staker and assigns it the value of the Staker struct for the staker_ address in the stakers mapping.
+    // function calculateRewards(address staker_) public view returns (uint256) {
+    //     Staker memory staker = stakers[staker_];
+    //     StakedNft[] memory _stakedNfts = stakedNfts[staker_];
+
+    //     uint256 accRewards;
+    //     for (uint256 i; i < staker.amountStaked; i++) {
+    //         uint256 _index = nftCollection.getIndexForId(_stakedNfts[i].id);
+
+    //         if (
+    //             !_stakedNfts[i].expired &&
+    //             stakerAddress[_stakedNfts[i].id] == staker_ &&
+    //             (block.timestamp - _stakedNfts[i].timeStaked <= rewardDays[_index - 1])
+    //         ) {
+
+    //             uint256 TimeSinceLastFed = block.timestamp - _stakedNfts[i].lastTimeFed;
+    //             uint256 daysOfRewards;
+
+    //             if (TimeSinceLastFed <= 30 days) {
+    //                     daysOfRewards = block.timestamp - staker.timeOfLastUpdate;
+
+    //             } else {
+    //                 uint256 timeNFTexpired = _stakedNfts[i].lastTimeFed + 30 days;
+    //                 if(staker.timeOfLastUpdate < timeNFTexpired){
+    //                     daysOfRewards = timeNFTexpired - staker.timeOfLastUpdate;
+    //                 }
+    //             }
+
+    //             if(daysOfRewards > 1 days){
+    //                 uint256 rewardRatePerDay = ((rewardsPerDay[_index - 1] / 100) * nftCollection.getFeeForId(_index))/ZooTokenDecimal;
+    //                 accRewards += (daysOfRewards * rewardRatePerDay) / 86400;
+    //             }
+    //         }
+    //     }
+    //     return accRewards;
+    // }
+
+    function calculateRewards(address staker_) public view returns (uint256) {
         Staker memory staker = stakers[staker_];
-        // creates a memory variable _stakedNfts of type StakedNft array and assigns it the value of the StakedNft array for the staker_ address in the stakedNfts mapping.
         StakedNft[] memory _stakedNfts = stakedNfts[staker_];
 
         uint256 accRewards;
         for (uint256 i; i < staker.amountStaked; i++) {
             uint256 _index = nftCollection.getIndexForId(_stakedNfts[i].id);
+            uint256 daysOfRewards;
 
+            if (
+                !_stakedNfts[i].expired &&
+                stakerAddress[_stakedNfts[i].id] == staker_ &&
+                (block.timestamp - _stakedNfts[i].timeStaked <=
+                    rewardDays[_index - 1])
+            ) {
+                uint256 timeNFTexpired = _stakedNfts[i].lastTimeFed + 30 days;
 
-            //  checks if the staked NFT at index i has expired. If it has not expired, the function continues to the next check.
-            // checks if the staked NFT at index i belongs to the staker_ address and if the NFT has been staked for fewer days than the corresponding reward period. If both conditions are true, the function continues to the next check.    
-            // Check if NFT has NOT expired
-            if (!_stakedNfts[i].expired && stakerAddress[_stakedNfts[i].id] == staker_ && (block.timestamp - _stakedNfts[i].timeStaked <= rewardDays[_index - 1])) {
-                    // Calculate time since last feeding
-                    uint256 TimeSinceLastFed = block.timestamp - _stakedNfts[i].lastTimeFed;
-                    //  checks if the user has feed animal in the last 15 days .
-                    if (
-                        TimeSinceLastFed <= 30 days
-                    ) {
-                        uint256 daysOfRewards = block.timestamp - staker.timeOfLastUpdate;
-                        uint256 rewardRatePerDay = rewardsPerDay[_index - 1] * nftCollection.getFeeForId(_index - 1); 
-                        accRewards += (daysOfRewards * rewardRatePerDay) / (1000 * 86400);
+                if (timeNFTexpired > block.timestamp) {
+                    daysOfRewards = block.timestamp - staker.timeOfLastUpdate;
+                } else {
+                    daysOfRewards = timeNFTexpired - staker.timeOfLastUpdate;
+                }
 
-                    //If the staked NFT at index i has not been fed within the last 30 days, the function calculates the accumulated rewards using the formula ((30 days - timeSinceLastFed) * rewardsPerDay * NFTPrice) / (1000 * 86400) and adds it to the accRewards variable.
-                    } else {
-                        uint256 timeNFTexpired = _stakedNfts[i].lastTimeFed + 30 days;
-                        uint256 daysOfRewards = timeNFTexpired - staker.timeOfLastUpdate;
-                        uint256 rewardRatePerDay = rewardsPerDay[_index - 1] * nftCollection.getFeeForId(_index - 1); 
-                        accRewards += (daysOfRewards * rewardRatePerDay) / (1000 * 86400) ;
-                    }
-            }       
+                if (daysOfRewards > 1 days) {
+                    uint256 rewardRatePerDay = ((rewardsPerDay[_index - 1] /
+                        100) * nftCollection.getFeeForId(_index)) /
+                        ZooTokenDecimal;
+                    accRewards += (daysOfRewards * rewardRatePerDay) / 86400;
+                }
+            }
         }
         return accRewards;
     }
@@ -303,8 +338,6 @@ contract Staking {
     }
 
     function stakeNFT(uint256[] calldata _tokenIds) external nonReentrant {
-        
-        
         if (stakers[msg.sender].amountStaked > 0) {
             uint256 rewards = calculateRewards(msg.sender);
             stakers[msg.sender].unclaimedRewards += rewards;
@@ -313,12 +346,10 @@ contract Staking {
             stakersArray.push(msg.sender);
         }
 
-        
         uint256 len = _tokenIds.length;
 
         //  The loop iterates over the array of _tokenIds
         for (uint256 i; i < len; ++i) {
-            
             //For each ERC721 token ID in the input array, it checks if the token has been staked before. If yes, it throws an error. as a token can only be staked once
             require(!stakedBefore[_tokenIds[i]], "Can't Restake A Token");
             uint256 index = nftCollection.getIndexForId(_tokenIds[i]);
@@ -333,15 +364,16 @@ contract Staking {
                 "Approve Staker For The Nft"
             );
 
-            nftCollection.transferFrom(
-                msg.sender,
-                address(this),
-                _tokenIds[i]
-            );
+            nftCollection.transferFrom(msg.sender, address(this), _tokenIds[i]);
 
             //here we will swap zootoken from 250 usdc
-            USDCToken.approve(_USDCToken,nftCollection.getFeeForId(index - 1)*1e18);
-            uint256 zoo_tokens = swap.SellingUSDCToken(nftCollection.getFeeForId(index - 1)*1e18);
+            USDCToken.approve(
+                _USDCToken,
+                nftCollection.getFeeForId(index - 1) * 1e18
+            );
+            uint256 zoo_tokens = swap.SellingUSDCToken(
+                nftCollection.getFeeForId(index - 1) * 1e18
+            );
 
             stakerAddress[_tokenIds[i]] = msg.sender;
             StakedNft memory _stakedNft;
@@ -353,52 +385,95 @@ contract Staking {
             stakers[msg.sender].fundsDeposited += zoo_tokens;
             stakedBefore[_tokenIds[i]] = true;
         }
-        
-                // the amountStaked variable of the staker's struct is incremented by the number of tokens being staked (len), indicating that the staker has staked additional tokens
+
+        // the amountStaked variable of the staker's struct is incremented by the number of tokens being staked (len), indicating that the staker has staked additional tokens
         stakers[msg.sender].amountStaked += len;
 
         // setting the current time
         stakers[msg.sender].timeOfLastUpdate = block.timestamp;
-
     }
+
     function claimRewards() external {
-            uint256 rewards = calculateRewards(msg.sender) +
+        uint256 rewards = calculateRewards(msg.sender) +
             stakers[msg.sender].unclaimedRewards;
-            updateUserPool(msg.sender);
+        updateUserPool(msg.sender);
 
-            require(rewards > 0, "You have no rewards to claim");
-            stakers[msg.sender].timeOfLastUpdate = block.timestamp;
-            stakers[msg.sender].unclaimedRewards = 0;
-            ZooToken.transfer(msg.sender, rewards*1e6);
-    }
-
-    function setSwapAddress(address _swapAddress) public onlyOwner {
-            _USDCToken = _swapAddress;
+        require(rewards > 0, "You have no rewards to claim");
+        stakers[msg.sender].timeOfLastUpdate = block.timestamp;
+        stakers[msg.sender].unclaimedRewards = 0;
+        ZooToken.transfer(msg.sender, rewards * 1e6);
     }
 
     function getWhaleFee(uint256 _userFunds) public view returns (uint256) {
         uint256 rewardTokenBalance = ZooToken.balanceOf(address(this));
-        if (_userFunds < ((1 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)) {
+        if (
+            _userFunds <
+            ((((1 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+                ZooTokenDecimal)
+        ) {
             return 0;
-        } else if (_userFunds < ((2 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)) {
-            return (_userFunds / 100) * whalesWithdrawalExtraFee/ZooTokenDecimal;
-        } else if (_userFunds < ((3 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)){
-            return (_userFunds / 100) * (whalesWithdrawalExtraFee*2)/ZooTokenDecimal;
-        } else if (_userFunds < ((4 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)){
-            return (_userFunds / 100) * (whalesWithdrawalExtraFee*3)/ZooTokenDecimal;
-        } else if (_userFunds < ((5 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)){
-            return (_userFunds / 100) * (whalesWithdrawalExtraFee*4)/ZooTokenDecimal;
-        } else if (_userFunds < ((6 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)) {
-            return (_userFunds / 100) * (whalesWithdrawalExtraFee*5)/ZooTokenDecimal;
-        } else if (_userFunds < ((7 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)) {
-            return (_userFunds / 100) * (whalesWithdrawalExtraFee*6)/ZooTokenDecimal;
-        }else if (_userFunds < ((8 * ZooTokenDecimal / 100) * rewardTokenBalance/ZooTokenDecimal)) {
-            return (_userFunds / 100) * (whalesWithdrawalExtraFee*7)/ZooTokenDecimal;
+        } else if (
+            _userFunds <
+            ((((2 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+                ZooTokenDecimal)
+        ) {
+            return
+                ((_userFunds / 100) * whalesWithdrawalExtraFee) /
+                ZooTokenDecimal;
+        } else if (
+            _userFunds <
+            ((((3 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+                ZooTokenDecimal)
+        ) {
+            return
+                ((_userFunds / 100) * (whalesWithdrawalExtraFee * 2)) /
+                ZooTokenDecimal;
+        } else if (
+            _userFunds <
+            ((((4 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+                ZooTokenDecimal)
+        ) {
+            return
+                ((_userFunds / 100) * (whalesWithdrawalExtraFee * 3)) /
+                ZooTokenDecimal;
+        } else if (
+            _userFunds <
+            ((((5 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+                ZooTokenDecimal)
+        ) {
+            return
+                ((_userFunds / 100) * (whalesWithdrawalExtraFee * 4)) /
+                ZooTokenDecimal;
+        } else if (
+            _userFunds <
+            ((((6 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+                ZooTokenDecimal)
+        ) {
+            return
+                ((_userFunds / 100) * (whalesWithdrawalExtraFee * 5)) /
+                ZooTokenDecimal;
+        } else if (
+            _userFunds <
+            ((((7 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+                ZooTokenDecimal)
+        ) {
+            return
+                ((_userFunds / 100) * (whalesWithdrawalExtraFee * 6)) /
+                ZooTokenDecimal;
+        } else if (
+            _userFunds <
+            ((((8 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+                ZooTokenDecimal)
+        ) {
+            return
+                ((_userFunds / 100) * (whalesWithdrawalExtraFee * 7)) /
+                ZooTokenDecimal;
         } else {
-            return (_userFunds / 100) * (whalesWithdrawalExtraFee*8)/ZooTokenDecimal;
+            return
+                ((_userFunds / 100) * (whalesWithdrawalExtraFee * 8)) /
+                ZooTokenDecimal;
         }
     }
-    // 1600000
 
     function withdraw(uint256[] calldata _tokenIds) external nonReentrant {
         Staker storage __staker = stakers[msg.sender];
@@ -413,21 +488,16 @@ contract Staking {
         uint256 len = _tokenIds.length;
         __staker.unclaimedRewards += rewards - (whaleFee * len);
 
-
         for (uint256 i; i < len; ++i) {
             require(stakerAddress[_tokenIds[i]] == msg.sender);
             stakerAddress[_tokenIds[i]] = address(0);
-            nftCollection.transferFrom(
-                address(this),
-                msg.sender,
-                _tokenIds[i]
-            );
+            nftCollection.transferFrom(address(this), msg.sender, _tokenIds[i]);
         }
 
         __staker.amountStaked -= len;
         __staker.timeOfLastUpdate = block.timestamp;
-        
-        //poping out tokens from user's tokens from stakersArray if it exist.
+
+        //poping out user's tokens from stakersArray if it exist.
         if (__staker.amountStaked == 0) {
             for (uint256 i; i < stakersArray.length; ++i) {
                 if (stakersArray[i] == msg.sender) {
@@ -440,5 +510,139 @@ contract Staking {
         emit Withdrawn(_tokenIds, msg.sender);
     }
 
+    function setSwapAddress(address _swapAddress) public onlyOwner {
+        require(_swapAddress != address(0), "address is undefined");
+        swap = ISingleSwap(_swapAddress);
+    }
+
+    function setUsdcAddress(address usdcToken) public onlyOwner {
+        require(usdcToken != address(0), "address is undefined");
+        _USDCToken = usdcToken;
+    }
+
+    function setNFTAddress(address nftAddress) public onlyOwner {
+        require(nftAddress != address(0), "address is undefined");
+        nftCollection = INftCollection(nftAddress);
+    }
+
+    function setZooAddress(address ZooAddress) public onlyOwner {
+        require(ZooAddress != address(0), "address is undefined");
+        ZooToken = IZooToken(ZooAddress);
+    }
+
+    function setZooTokenDecimal(uint256 tokenDecimal) public onlyOwner {
+        require(tokenDecimal >= 10, "should be atleast 1 decimal");
+        ZooTokenDecimal = tokenDecimal;
+    }
+
+    function setwhalesWithdrawalExtraFee(uint256 fees) public onlyOwner {
+        require(fees > 0, "value is undefined");
+        whalesWithdrawalExtraFee = fees;
+    }
+
+    function getSwapAddress() public view returns (ISingleSwap) {
+        return swap;
+    }
+
+    function getUsdcAddress() public view returns (address) {
+        return _USDCToken;
+    }
+
+    function getNFTAddress() public view returns (INftCollection) {
+        return nftCollection;
+    }
+
+    function getZooAddress() public view returns (IZooToken) {
+        return ZooToken;
+    }
+
+    function getZooTokenDecimal() public view returns (uint256) {
+        return ZooTokenDecimal;
+    }
+
+    function getwhalesWithdrawalExtraFee() public view returns (uint256) {
+        return whalesWithdrawalExtraFee;
+    }
+
+    function setRewardsPerDay(
+        uint256 _nftIndex,
+        uint256 _newValue
+    ) public onlyOwner {
+        require(_nftIndex > 0 && _nftIndex < 4, "Invalid Index");
+        address[] memory _stakers = stakersArray;
+        uint256 len = _stakers.length;
+        for (uint256 i; i < len; ++i) {
+            address user = _stakers[i];
+            stakers[user].unclaimedRewards += calculateRewards(user);
+            updateUserPool(user);
+            stakers[user].timeOfLastUpdate = block.timestamp;
+        }
+        rewardsPerDay[_nftIndex - 1] = _newValue;
+        emit NewRewardsPerDay(_nftIndex, _newValue);
+    }
+
+    function getRewardsPerDay()
+        public
+        view
+        returns (uint256, uint256, uint256)
+    {
+        return (rewardsPerDay[0], rewardsPerDay[0], rewardsPerDay[0]);
+    }
+
+    function setRewardDays(
+        uint256 _nftIndex,
+        uint256 _newDays
+    ) public onlyOwner {
+        require(_nftIndex > 0 && _nftIndex < 4, "Invalid Index");
+        address[] memory _stakers = stakersArray;
+        uint256 len = _stakers.length;
+        for (uint256 i; i < len; ++i) {
+            address user = _stakers[i];
+            stakers[user].unclaimedRewards += calculateRewards(user);
+            updateUserPool(user);
+            stakers[user].timeOfLastUpdate = block.timestamp;
+        }
+        rewardDays[_nftIndex - 1] = _newDays;
+        // emit NewRewardDays(_nftIndex, _newDays);
+    }
+
+    function getRewardDays()
+        public
+        view
+        returns (uint256, uint256, uint256)
+    {
+        return (rewardDays[0], rewardDays[0], rewardDays[0]);
+    }
+
+    function userStakeInfo(
+        address _user
+    ) public view returns (uint256 _tokensStaked, uint256 _availableRewards) {
+        return (stakers[_user].amountStaked, availableRewards(_user));
+    }
+
+    function availableRewards(address _user) public view returns (uint256) {
+        if (stakers[_user].amountStaked == 0) {
+            return stakers[_user].unclaimedRewards;
+        }
+        uint256 _rewards = stakers[_user].unclaimedRewards +
+            calculateRewards(_user);
+        return _rewards;
+    }
+
+    function isHungry(uint256 _tokenId) public view returns (bool) {
+        bool _isHungry;
+        address _staker = stakerAddress[_tokenId];
+        require(_staker != address(0), "Nft Is Not Staked");
+        Staker memory staker = stakers[_staker];
+        StakedNft[] memory _stakedNfts = stakedNfts[_staker];
+
+        for (uint256 i; i < staker.amountStaked; i++) {
+            StakedNft memory _stakedNft = _stakedNfts[i];
+            if (_stakedNft.id == _tokenId) {
+                return (block.timestamp - _stakedNft.lastTimeFed) > 30 days;
+            }
+        }
+        return _isHungry;
+    }
 }
 // address public constant USDC_address = 0x0FA8781a83E46826621b3BC094Ea2A0212e71B23;

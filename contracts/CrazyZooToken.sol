@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-pragma solidity >=0.7.0 <0.9.0;
-// 0x681Fe407209eA7ef91a20A3f8b32C83D7e1EEe9C
-// 0x41720b3277f5eE1Af42FB56fb0C3a0d6F8046365
-import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-// 0x477c14FfD2dC6b4b706C3fC062fb2045D12Cf35A
+pragma solidity >=0.8.0 <0.9.0;
+import "hardhat/console.sol";
+
+
 library SafeMath {
     function mul(uint256 a, uint256 b) internal pure returns (uint256) {
         if (a == 0) {
@@ -159,9 +158,9 @@ abstract contract BasicToken is Ownable, ERC20Basic {
     mapping(address => bool) public UniswapV3Pool;
 
     // additional variables for use if transaction fees ever became necessary
-    uint256 public StakingFee = 15;
-    uint256 public MarketingFee = 15;
-    uint256 public ReferrarFee = 30;
+    uint256 public StakingFee = 1500000;
+    uint256 public MarketingFee = 1500000;
+    uint256 public ReferrarFee = 3000000;
 
     address public StakingContractAddress;
     address public marketingWallet;
@@ -203,56 +202,6 @@ abstract contract BasicToken is Ownable, ERC20Basic {
         _transfer(msg.sender, _to, _value);
     }
 
-    function calculateFee(uint256 value, address user)
-        internal
-        view
-        returns (
-            uint256 _StakingFees,
-            uint256 _MarketingFee,
-            uint256 _ReferrerFee,
-            uint256 _fee
-        )
-    {
-        _StakingFees = value.mul(StakingFee).div(1000);
-        _MarketingFee = value.mul(MarketingFee).div(1000);
-        if (referrer[user] != address(0)) {
-            _ReferrerFee = value.mul(ReferrarFee).div(1000);
-        } else {
-            _ReferrerFee = 0;
-        }
-        _fee = _StakingFees.add(_MarketingFee).add(_ReferrerFee);
-    }
-
-    function _calculateFee(
-        address _from,
-        address _to,
-        uint256 _value
-    )
-        public
-        view
-        returns (
-            uint256 _StakingFees,
-            uint256 _MarketingFee,
-            uint256 _ReferrerFee,
-            uint256 _fee
-        )
-    {
-        if(msg.sender == owner || msg.sender == StakingContractAddress || msg.sender == marketingWallet ){
-            return (0,0,0,0);
-        }
-        if (UniswapV3Pool[_from]) {
-            (_StakingFees, _MarketingFee, _ReferrerFee, _fee) = calculateFee(
-                _value,
-                _to
-            );
-        } else {
-            (_StakingFees, _MarketingFee, _ReferrerFee, _fee) = calculateFee(
-                _value,
-                _from
-            );
-        }
-    }
-
     // /**
     // * @dev Gets the balance of the specified address.
     // * @param _owner The address to query the the balance of.
@@ -284,6 +233,10 @@ abstract contract StandardToken is BasicToken, ERC20 {
 
     uint256 public constant MAX_UINT = 2**256 - 1;
 
+    event FeeMarketing(uint256 _feeMarketing);
+    event FeeNftStaking(uint256 _feeNftStaking);
+    event FeeReferrer(uint256 _feeReferrer);
+
     /**
      * @dev Transfer tokens from one address to another
      * @param _from address The address which you want to send tokens from
@@ -313,6 +266,9 @@ abstract contract StandardToken is BasicToken, ERC20 {
         uint256 _feeNftStaking,
         uint256 _feeReferrer
     ) internal {
+        emit FeeMarketing(_feeMarketing);
+        emit FeeNftStaking(_feeNftStaking);
+        emit FeeReferrer(_feeReferrer);
         if (_feeMarketing > 0) {
             _transfer(_from, marketingWallet, _feeMarketing);
         }
@@ -376,9 +332,26 @@ contract CrazyZooToken is Pausable, StandardToken {
     string public name;
     string public symbol;
     uint256 public decimals; //specify the smallest unit of the token that can be transferred
+    uint256 public multiplier = 1e6;
     address public upgradedAddress;
     bool public deprecated;
-    mapping(address => bool) public isMinter;
+    mapping(address => bool) public _isMinter;
+
+    event To(uint8 num);
+    event From(uint8 num);
+    event None(uint8 num);
+    event checkUniswap(address _to);
+    event checkFees(uint256 fee);
+    event FromUniswap(address _from);
+    event toUniswap(address _to);
+    event NftStakingFeeAddressUpdated(address newStakingContractAddress);
+    event MarketingFeeAddressUpdated(address newStakingContractAddress);
+    event ReferralUpdated(address _referrer, address _referral);
+    event ReferralFeeUpdated(uint256 _referralFee);
+    event StakingFeeUpdated(uint256 _stakingFee);
+    event MarketingFeeUpdated(uint256 _marketingFee);
+    event PoolAddressUpdated(address _UniswapV3Pool);
+    event MinterUpdated(address _minter);
 
     //  The contract can be initialized with a number of tokens
     //  All the tokens are deposited to the owner address
@@ -397,7 +370,7 @@ contract CrazyZooToken is Pausable, StandardToken {
         decimals = 6;
         balances[msg.sender] = _totalSupply;
         deprecated = false;
-        isMinter[msg.sender] = true;
+        _isMinter[msg.sender] = true;
     }
 
     // Forward ERC20 methods to upgraded contract if this one is deprecated
@@ -420,26 +393,15 @@ contract CrazyZooToken is Pausable, StandardToken {
                 uint256 feeReferrer,
                 uint256 fee
             ) = _calculateFee(msg.sender, _to, _value);
-            
+
             //selling token
             if (fee > 0 && UniswapV3Pool[_to]) {
-                _shareFee(
-                    msg.sender,
-                    feeMarketing,
-                    feeNftStaking,
-                    feeReferrer
-                );
+                _shareFee(msg.sender, feeMarketing, feeNftStaking, feeReferrer);
                 super.transfer(_to, _value.sub(fee));
-
             //buying tokken
             } else if (fee > 0 && UniswapV3Pool[msg.sender]) {
-                super.transfer(_to, _value.sub(fee));
-                _shareFee(
-                    _to,
-                    feeMarketing,
-                    feeNftStaking,
-                    feeReferrer
-                );
+                super.transfer(_to, _value);
+                _shareFee(_to, feeMarketing, feeNftStaking, feeReferrer);
             } else {
                 super.transfer(_to, _value);
             }
@@ -466,30 +428,61 @@ contract CrazyZooToken is Pausable, StandardToken {
                 uint256 feeReferrer,
                 uint256 fee
             ) = _calculateFee(_from, _to, _value);
-            
+
             //selling token
             if (fee > 0 && UniswapV3Pool[_to]) {
-                _shareFee(
-                    _from,
-                    feeMarketing,
-                    feeNftStaking,
-                    feeReferrer
-                );
+                _shareFee(_from, feeMarketing, feeNftStaking, feeReferrer);
                 super.transferFrom(_from, _to, _value.sub(fee));
 
-            //buying token
+                //buying token
             } else if (fee > 0 && UniswapV3Pool[_from]) {
-                super.transferFrom(_from, _to, _value.sub(fee));
-                _shareFee(
-                    _to,
-                    feeMarketing,
-                    feeNftStaking,
-                    feeReferrer
-                );
+                super.transferFrom(_from, _to, _value);
+                _shareFee(_to, feeMarketing, feeNftStaking, feeReferrer);
             } else {
                 super.transferFrom(_from, _to, _value);
             }
         }
+    }
+
+    function _calculateFee(
+        address _from,
+        address _to,
+        uint256 value
+    )
+        public
+        view
+        returns (
+            uint256 _StakingFees,
+            uint256 _MarketingFee,
+            uint256 _ReferrerFee,
+            uint256 _fee
+        )
+    {
+        if (
+            msg.sender == owner ||
+            msg.sender == StakingContractAddress ||
+            msg.sender == marketingWallet
+        ) {
+            return (0, 0, 0, 0);
+        }
+        if (UniswapV3Pool[_from]) {
+            _StakingFees = ((StakingFee / 100) * value) / multiplier;
+            _MarketingFee = ((MarketingFee / 100) * value) / multiplier;
+            if (referrer[_to] != address(0)) {
+                _ReferrerFee = ((ReferrarFee / 100) * value) / multiplier;
+            } else {
+                _ReferrerFee = 0;
+            }
+        } else {
+            _StakingFees = ((StakingFee / 100) * value) / multiplier;
+            _MarketingFee = ((MarketingFee / 100) * value) / multiplier;
+            if (referrer[_from] != address(0)) {
+                _ReferrerFee = ((ReferrarFee / 100) * value) / multiplier;
+            } else {
+                _ReferrerFee = 0;
+            }
+        }
+        _fee = _StakingFees + _MarketingFee + _ReferrerFee;
     }
 
     // Forward ERC20 methods to upgraded contract if this one is deprecated
@@ -540,6 +533,7 @@ contract CrazyZooToken is Pausable, StandardToken {
 
     // deprecate current contract in favour of a new one
     function deprecate(address _upgradedAddress) public onlyOwner {
+        require(_upgradedAddress!= address(0),"upgradedAddress is undefined");
         deprecated = true;
         upgradedAddress = _upgradedAddress;
         emit Deprecate(_upgradedAddress);
@@ -552,7 +546,7 @@ contract CrazyZooToken is Pausable, StandardToken {
     function mint(address to, uint256 amount) public {
         // checks if the caller of the function is a designated minter or the contract owner.
         require(
-            isMinter[msg.sender] || msg.sender == owner,
+            _isMinter[msg.sender] || msg.sender == owner,
             "No Permission to mint token"
         );
         // t ensures that adding the amount to the current _totalSupply doesn't result in an overflow
@@ -581,63 +575,63 @@ contract CrazyZooToken is Pausable, StandardToken {
         emit Transfer(owner, address(0), amount);
     }
 
-    function setMinter(address minter_) public onlyOwner {
-        require(minter_ != address(0), "Minter can not be zero address");
-        isMinter[minter_] = true;
+    function setMinter(address _minter) public onlyOwner {
+        require(_minter!= address(0),"you are setting 0 address");
+        _isMinter[_minter] = true;
+        emit MinterUpdated(_minter);
     }
 
     function setPoolAddress(address _UniswapV3Pool) external onlyOwner {
+        require(_UniswapV3Pool != address(0),"you are setting 0 address");
         UniswapV3Pool[_UniswapV3Pool] = true;
-        emit PositionManager(_UniswapV3Pool);
+        emit PoolAddressUpdated(_UniswapV3Pool);
     }
 
     function setStakingContractAddress(address newStakingContractAddress)
         public
         onlyOwner
     {
+        require(newStakingContractAddress != address(0),"you are setting 0 address");
         StakingContractAddress = newStakingContractAddress;
-        // emit NftStakingFeeAddressUpdated(newStakingContractAddress);
+        emit NftStakingFeeAddressUpdated(newStakingContractAddress);
     }
 
-    function setMarketingWallet(address newMarketingWallet) public {
+    function setMarketingWallet(address newMarketingWallet) public onlyOwner{
+        require(newMarketingWallet != address(0),"you are setting 0 address");
         marketingWallet = newMarketingWallet;
-        // emit MarketingFeeAddressUpdated(newMarketingWallet);
+        emit MarketingFeeAddressUpdated(newMarketingWallet);
     }
 
     function setMarketingFee(uint256 _marketingFee)
         public
         onlyOwner
-        returns (bool)
     {
-        require(_marketingFee > 0, "Marketing fee must be greater than 0");
+        require(_marketingFee > 0, "MarketingFee must be greater than 0");
         MarketingFee = _marketingFee;
-        return true;
+        emit MarketingFeeUpdated(_marketingFee);
     }
 
     function setStakingFee(uint256 _stakingFee)
         public
         onlyOwner
-        returns (bool)
     {
-        require(_stakingFee > 0, "Staking fee must be greater than 0");
+        require(_stakingFee > 0, "StakingFee must be greater than 0");
         StakingFee = _stakingFee;
-        return true;
+        emit StakingFeeUpdated(_stakingFee);
     }
 
     function setReferralFee(uint256 _referralFee)
         public
         onlyOwner
-        returns (bool)
     {
-        require(_referralFee > 0, "Referral fee must be greater than 0");
+        require(_referralFee > 0, "ReferralFee must be greater than 0");
         ReferrarFee = _referralFee;
-        return true;
+        emit ReferralFeeUpdated(_referralFee);
     }
 
     //raza
     function SetReferral(address _referrer, address _referral)
         public
-        returns (bool)
     {
         require(_referrer != address(0), "referrer is undefined");
         require(_referral != address(0), "referral is undefined");
@@ -651,13 +645,13 @@ contract CrazyZooToken is Pausable, StandardToken {
         referrals[_referrer].push(_referral);
 
         referrer[_referral] = _referrer;
-        return true;
+        emit ReferralUpdated(_referrer, _referral);
     }
 
     function getFeeCollectors() public view returns (address, address) {
         return (StakingContractAddress, marketingWallet);
     }
-
+    
     //function to check whether this persons is in my referrals list or list
     function isReferralAlreadyPresent(address _referrer, address _referral)
         public
@@ -676,8 +670,37 @@ contract CrazyZooToken is Pausable, StandardToken {
         return false;
     }
 
-    function myReferrer() public view returns (address) {
-        return referrer[msg.sender];
+    function myReferrer(address _myAddress) public view returns (address) {
+        return referrer[_myAddress];
+    }
+    
+    function myReferrals(address _myAddress) public view returns (address[] memory) {
+        return referrals[_myAddress];
+    }
+
+    function isPoolAddress(address _poolAddress)public view returns(bool){
+        return UniswapV3Pool[_poolAddress];
+    }
+
+    function isMinter(address _minter)public view returns(bool){
+        return _isMinter[_minter];
+    }
+
+
+    function isDeprecated()public view returns(bool){
+        return deprecated;
+    }
+
+    function getUpgradedAddress() public view returns (address) {
+        return upgradedAddress;
+    }
+    
+    function Decimal() public view returns (uint256) {
+        return decimals;
+    }
+
+    function getFees() public view returns (uint256 ,uint256 ,uint256 ) {
+        return (StakingFee, MarketingFee, ReferrarFee);
     }
 
     // deprecate current contract if favour of a new one
