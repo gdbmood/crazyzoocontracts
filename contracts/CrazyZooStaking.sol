@@ -131,7 +131,7 @@ contract CrazyZooStaking {
     INftCollection public nftCollection;
     ISingleSwap public swap;
     IZooToken public ZooToken;
-    IERC20USDC public immutable USDCToken = IERC20USDC(_USDCToken);
+    IERC20USDC public USDCToken;
 
     //staking storage
     struct StakedNft {
@@ -162,7 +162,7 @@ contract CrazyZooStaking {
     mapping(uint256 => bool) public stakedBefore;
 
     // food price
-    uint256[3] public foodPrices = [3.5 * 1e18, 7.5 * 1e18, 15 * 1e18];
+    uint256[3] public foodPrices = [3500000000000000000, 7500000000000000000, 1500000000000000000];
 
     //rewards
     // 0 for Lemur, 1 for Rhino, 2 for Gorilla
@@ -196,6 +196,7 @@ contract CrazyZooStaking {
     ) {
         nftCollection = _nftCollection;
         _USDCToken = __USDCToken;
+        USDCToken = IERC20USDC(__USDCToken);
         swap = _SingleSwap;
         owner = _owner;
         ZooToken = _ZooToken;
@@ -205,16 +206,14 @@ contract CrazyZooStaking {
     event NewRewardsPerDay(uint256 _nftIndex, uint256 _newValue);
 
     // // TokenId parameter in the feedYourAnimal function is used to specify the ID of the NFT that the user wants to feed
-    function feedYourAnimal(uint256 _tokenId) external nonReentrant {
+    function feedYourAnimal(uint256 _tokenId) public  {
         // returns the index of the NFT based on the _tokenId parameter.
         uint256 nftIndex = nftCollection.getIndexForId(_tokenId);
         // fetches the price of food for the NFT at the given nftIndex.
         uint256 foodPrice = foodPrices[nftIndex - 1];
+
         // checks if the contract has been approved to spend the required amount of feeToken tokens by the caller
-        require(
-            USDCToken.allowance(msg.sender, address(this)) >= foodPrice,
-            "Approve Staking Contract"
-        );
+        require( USDCToken.allowance(msg.sender, address(this)) >= foodPrice, "Approve Staking Contract");
 
         // transfers the foodPrice amount of feeToken tokens from the caller to the contract.
         USDCToken.transferFrom(msg.sender, address(this), foodPrice);
@@ -225,7 +224,7 @@ contract CrazyZooStaking {
         // stores the length of the userStakedNfts array.
         uint256 len = userStakedNfts.length;
 
-        // iterates over each StakedNft struct in the userStakedNfts array.
+        // iterates over each StakedNft struct in the userS takedNfts array.
         for (uint256 i; i < len; i++) {
             // checks if the _tokenId matches with the id of the StakedNft struct in the current iteration.
             if (userStakedNfts[i].id == _tokenId) {
@@ -242,6 +241,7 @@ contract CrazyZooStaking {
                 return;
             }
         }
+
     }
 
     // function calculateRewards(address staker_) public view returns (uint256) {
@@ -398,10 +398,10 @@ contract CrazyZooStaking {
             stakers[msg.sender].unclaimedRewards;
         updateUserPool(msg.sender);
 
-        require(rewards > 0, "You have no rewards to claim");
-        stakers[msg.sender].timeOfLastUpdate = block.timestamp;
-        stakers[msg.sender].unclaimedRewards = 0;
-        ZooToken.transfer(msg.sender, rewards * 1e6);
+        // require(rewards > 0, "You have no rewards to claim");
+        // stakers[msg.sender].timeOfLastUpdate = block.timestamp;
+        // stakers[msg.sender].unclaimedRewards = 0;
+        // ZooToken.transfer(msg.sender, rewards);
     }
 
     function getWhaleFee(uint256 _userFunds) public view returns (uint256) {

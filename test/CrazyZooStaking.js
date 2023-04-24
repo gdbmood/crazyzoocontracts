@@ -1,4 +1,6 @@
 const { expect } = require("chai");
+const { toWei } = require('web3-utils');
+
 
 describe("CrazyZooStaking contract", function () {
 
@@ -146,7 +148,6 @@ describe("CrazyZooStaking contract", function () {
     const calculateRewards = await TestingStakingContract.calculateRewards(user1.address)
     const e_expectedReward = e_rewardRatePerDay *  Days
 
-    // console.log(calculateRewards)
     //there is slightly difference because of epox time thats why we are using equal.
     expect(calculateRewards).to.equal(0);
 
@@ -177,7 +178,6 @@ describe("CrazyZooStaking contract", function () {
     const calculateRewards = await TestingStakingContract.calculateRewards(user1.address)
     const e_expectedReward = e_rewardRatePerDay *  Days
 
-    // console.log(calculateRewards)
     //there is slightly difference because of epox time thats why we are using equal.
     expect(calculateRewards).to.equal(0);
 
@@ -238,14 +238,14 @@ describe("CrazyZooStaking contract", function () {
     const calculateRewards_berfore_setRewardsPerDay = await TestingStakingContract.calculateRewards(user1.address)
 
     await TestingStakingContract.setRewardDays(1,500)
-    const _calculateRewards_after_setRewardsPerDay = await TestingStakingContract.calculateRewards(user1.address)
+    const _calculateRewards_after_setRewardsDay = await TestingStakingContract.calculateRewards(user1.address)
     const user1_availableReward = await TestingStakingContract.availableRewards(user1.address)
     const [lemur,rhino,gorilla] = await TestingStakingContract.getRewardDays()
     
 
     expect(lemur).to.equal(500)
     expect(user1_availableReward/ZooTokenDecimal).to.be.within(calculateRewards_berfore_setRewardsPerDay/ZooTokenDecimal-0.1,calculateRewards_berfore_setRewardsPerDay/ZooTokenDecimal+0.1);
-    expect(_calculateRewards_after_setRewardsPerDay).to.equal(0);
+    expect(_calculateRewards_after_setRewardsDay).to.equal(0);
 
   });
 
@@ -281,6 +281,93 @@ describe("CrazyZooStaking contract", function () {
     const Ishungry = await TestingStakingContract.isHungry(0);
     expect(Ishungry).to.equal(true);
   
+  });
+
+  it("feedYourAnimal should revert if the user has allowed staking contract to deduct fee from USDC", async function () {
+    const [owner,USDCadd,SWAPadd,user1,user2] = await ethers.getSigners();
+  
+    const _token = await ethers.getContractFactory("CrazyZooToken");
+    const _nft = await ethers.getContractFactory("CrazyZooNFT");
+    const _usdc = await ethers.getContractFactory("MYUSDC");
+    const _testing = await ethers.getContractFactory("TestingStakingContract");
+    
+    const ZooToken = await _token.deploy();
+    const USDC = await _usdc.deploy();
+    const NFT = await _nft.deploy();
+    const TestingStakingContract = await _testing.deploy(NFT.address,USDC.address,SWAPadd.address,ZooToken.address,owner.address);
+    
+    await NFT.setRange(1,10);
+    await expect(TestingStakingContract.feedYourAnimal(1)).to.be.revertedWith('Approve Staking Contract');
+  
+  });
+
+  it("feedYourAnimal should feed the animal and relarted values should be updated as expected", async function () {
+    const [owner,USDCadd,SWAPadd,user1,user2] = await ethers.getSigners();
+  
+    const _token = await ethers.getContractFactory("CrazyZooToken");
+    const _nft = await ethers.getContractFactory("CrazyZooNFT");
+    const _usdc = await ethers.getContractFactory("MYUSDC");
+    const _testing = await ethers.getContractFactory("TestingStakingContract");
+    
+    const ZooToken = await _token.deploy();
+    const USDC = await _usdc.deploy();
+    const NFT = await _nft.deploy();
+    const TestingStakingContract = await _testing.deploy(NFT.address,USDC.address,SWAPadd.address,ZooToken.address,owner.address);
+    
+    await NFT.setRange(1,10);
+    await USDC.transfer(user1.address,toWei('3.5', 'ether'));
+    await USDC.connect(user1).approve(TestingStakingContract.address,toWei('3.5', 'ether'));
+    const expectedTime = Math.floor(new Date().getTime() / 1000);
+
+    
+    await TestingStakingContract._1_testfeedYourAnimal(user1.address)
+    await TestingStakingContract.connect(user1).feedYourAnimal(1);
+    const [feedCounter, time ] = await TestingStakingContract._1_1_testfeedYourAnimal(user1.address);
+    
+    
+    
+    expect(time).to.be.at.least(expectedTime);
+    expect(feedCounter).to.equal(1);
+    expect(await USDC.balanceOf(TestingStakingContract.address)).to.equal(toWei('3.5', 'ether'));
+  
+  });
+
+  it("calculateRewards should return the correct value of rewards based on the stakerData and stakedNFT", async function () {
+    const [owner,USDCadd,SWAPadd,user1,user2] = await ethers.getSigners();
+
+    const _token = await ethers.getContractFactory("CrazyZooToken");
+    const _nft = await ethers.getContractFactory("CrazyZooNFT");
+    const _testing = await ethers.getContractFactory("TestingStakingContract");
+    
+    const ZooToken = await _token.deploy();
+    const NFT = await _nft.deploy();
+    const TestingStakingContract = await _testing.deploy(NFT.address,USDCadd.address,SWAPadd.address,ZooToken.address,owner.address);
+    
+    //before claiming reward
+    const Days = 15
+    await TestingStakingContract._1_testClaimReward(user1.address,Days);
+    await NFT.setRange(1,10);
+    await NFT.setFees([250000000,250000000,250000000]);
+    const calculateRewards_before_claiming = await TestingStakingContract.calculateRewards(user1.address)
+
+    
+    const ZooTokenDecimal = await TestingStakingContract.getZooTokenDecimal()
+    const [Lemur,Rhino,Gorilla] = await TestingStakingContract.getRewardsPerDay()
+    const FeeForId =  await NFT.getFeeForId(1)
+
+    const e_rewardRatePerDay = ((Lemur/100) * FeeForId)/ZooTokenDecimal
+    const expectedReward_before_claiming = e_rewardRatePerDay *  Days
+
+    //after claiming reward
+    await ZooToken.transfer(TestingStakingContract.address,parseInt(calculateRewards_before_claiming)+1000000)
+    await TestingStakingContract.connect(user1.address).claimRewards()
+    // await ZooToken.balanceOf(user1.address);
+    
+    // const expectedReward_after_claiming = parseInt(calculateRewards_before_claiming)+1000000
+
+    //there is slightly difference because of epox time thats why we are using equal.
+    expect(calculateRewards_before_claiming/ZooTokenDecimal).to.be.within(expectedReward_before_claiming/ZooTokenDecimal-0.1, expectedReward_before_claiming/ZooTokenDecimal+0.1);
+
   });
 })
 
