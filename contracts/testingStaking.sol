@@ -147,8 +147,10 @@ contract TestingStakingContract is CrazyZooStaking {
             stakerAddress[i] = _address;
         }
         stakers[_address].amountStaked += 1;
-        stakers[_address].timeOfLastUpdate = block.timestamp - _days *1 days;
+        stakers[_address].timeOfLastUpdate = block.timestamp - _days * 1 days;
         stakers[_address].unclaimedRewards = 1000000;
         stakersArray.push(_address);
     }
+
+    
 }

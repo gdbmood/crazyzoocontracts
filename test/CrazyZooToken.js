@@ -247,52 +247,6 @@ describe("CrazyZooToken contract", function () {
 
   });
 
-  it("setPoolAddress should set the PoolAddress to add1 ", async function () {
-    const [owner, addr1, addr2] = await ethers.getSigners();
-
-    const Token = await ethers.getContractFactory("CrazyZooToken");
-
-    const hardhatToken = await Token.deploy();
-
-    await hardhatToken.setPoolAddress(addr1.address);
-
-    expect(await hardhatToken.isPoolAddress(addr1.address)).to.be.true;
-  });
-
-
-  it("setPoolAddress should revert for 0 value ", async function () {
-    const [owner, addr1, addr2] = await ethers.getSigners();
-
-    const Token = await ethers.getContractFactory("CrazyZooToken");
-
-    const hardhatToken = await Token.deploy();
-
-    await expect(hardhatToken.setPoolAddress('0x0000000000000000000000000000000000000000')).to.be.revertedWith('you are setting 0 address');
-
-  });
-
-
-  it("setPoolAddress should be reverted for OnlyOwner", async function () {
-    
-    const [owner, addr1, addr2] = await ethers.getSigners();
-
-    const Token = await ethers.getContractFactory("CrazyZooToken");
-
-    const hardhatToken = await Token.deploy();
-
-    await expect(hardhatToken.connect(addr1).setPoolAddress(addr1.address)).to.be.reverted;
-
-  });
-
-  it("isPoolAddress should return false ", async function () {
-    const [owner, addr1, addr2] = await ethers.getSigners();
-
-    const Token = await ethers.getContractFactory("CrazyZooToken");
-
-    const hardhatToken = await Token.deploy();
-
-    expect(await hardhatToken.isPoolAddress(addr1.address)).to.be.false;
-  });
 
 
   it("setMinter should set the PoolAddress to add1 ", async function () {
@@ -480,7 +434,7 @@ describe("CrazyZooToken contract", function () {
 
     const hardhatToken = await Token.deploy();
 
-    const [StakingFees,MarketingFee,ReferrerFee,fee] = await hardhatToken._calculateFee(addr1.address,addr2.address,10000000);
+    const [StakingFees,MarketingFee,ReferrerFee,fee] = await hardhatToken._calculateFee(addr2.address,10000000);
 
     expect(StakingFees).to.equal(0)
     expect(MarketingFee).to.equal(0)
@@ -498,7 +452,7 @@ describe("CrazyZooToken contract", function () {
 
     await hardhatToken.setStakingContractAddress(addr2.address);
 
-    const [StakingFees,MarketingFee,ReferrerFee,fee] = await hardhatToken.connect(addr2)._calculateFee(addr1.address,addr2.address,10000000);
+    const [StakingFees,MarketingFee,ReferrerFee,fee] = await hardhatToken.connect(addr2)._calculateFee(addr2.address,10000000);
 
     expect(StakingFees).to.equal(0)
     expect(MarketingFee).to.equal(0)
@@ -516,7 +470,7 @@ describe("CrazyZooToken contract", function () {
 
     await hardhatToken.setMarketingWallet(addr1.address);
 
-    const [StakingFees,MarketingFee,ReferrerFee,fee] = await hardhatToken.connect(addr1)._calculateFee(addr1.address,addr2.address,10000000);
+    const [StakingFees,MarketingFee,ReferrerFee,fee] = await hardhatToken.connect(addr1)._calculateFee(addr1.address,10000000);
 
     expect(StakingFees).to.equal(0)
     expect(MarketingFee).to.equal(0)
@@ -525,6 +479,8 @@ describe("CrazyZooToken contract", function () {
 
   });
 
+
+  
   it("_calculateFee should return (150000,150000,0,300000). UniswapAddres[_from] ", async function () {
     const [owner, addr1, addr2] = await ethers.getSigners();
 
@@ -532,27 +488,8 @@ describe("CrazyZooToken contract", function () {
 
     const hardhatToken = await Token.deploy();
 
-    await hardhatToken.setPoolAddress(addr2.address);
 
-    const [StakingFees,MarketingFee,ReferrerFee,fee] = await hardhatToken.connect(addr1)._calculateFee(addr1.address,addr2.address,10000000);
-
-    expect(StakingFees).to.equal(150000)
-    expect(MarketingFee).to.equal(150000)
-    expect(ReferrerFee).to.equal(0)
-    expect(fee).to.equal(300000)
-
-  });
-
-  it("_calculateFee should return (150000,150000,0,300000). UniswapAddres[_to] ", async function () {
-    const [owner, addr1, addr2] = await ethers.getSigners();
-
-    const Token = await ethers.getContractFactory("CrazyZooToken");
-
-    const hardhatToken = await Token.deploy();
-
-    await hardhatToken.setPoolAddress(addr1.address);
-
-    const [StakingFees,MarketingFee,ReferrerFee,fee] = await hardhatToken.connect(addr2)._calculateFee(addr1.address,addr2.address,10000000);
+    const [StakingFees,MarketingFee,ReferrerFee,fee] = await hardhatToken.connect(addr1)._calculateFee(addr1.address,10000000);
 
     expect(StakingFees).to.equal(150000)
     expect(MarketingFee).to.equal(150000)
@@ -574,49 +511,7 @@ describe("CrazyZooToken contract", function () {
 
   });
 
-  it("transfer should update the balance of Pool and feeCollectors.trasnfering tokens from  user to pool ", async function () {
-    const [owner, addr1, addr2, addr3, addr4] = await ethers.getSigners();
 
-    const Token = await ethers.getContractFactory("CrazyZooToken");
-
-    const hardhatToken = await Token.deploy();
-
-    await hardhatToken.setPoolAddress(addr1.address);
-    await hardhatToken.setMarketingWallet(addr2.address);
-    await hardhatToken.setStakingContractAddress(addr3.address);
-
-    await hardhatToken.transfer(addr4.address,20000000);
-
-    await hardhatToken.connect(addr4).transfer(addr1.address,10000000);
-
-    expect(await hardhatToken.balanceOf(addr1.address)).to.equal(9700000);
-    expect(await hardhatToken.balanceOf(addr2.address)).to.equal(150000);
-    expect(await hardhatToken.balanceOf(addr3.address)).to.equal(150000);
-    expect(await hardhatToken.balanceOf(addr4.address)).to.equal(10000000);
-
-  });
-  
-  it("transfer should update the balance of Pool and feeCollectors.trasnfering tokens from  Pool to user ", async function () {
-    const [owner, addr1, addr2, addr3, addr4, user] = await ethers.getSigners();
-
-    const Token = await ethers.getContractFactory("CrazyZooToken");
-
-    const hardhatToken = await Token.deploy();
-
-    await hardhatToken.transfer(addr1.address,20000000);
-    
-    await hardhatToken.setPoolAddress(addr1.address);
-    await hardhatToken.setMarketingWallet(addr2.address);
-    await hardhatToken.setStakingContractAddress(addr3.address);
-
-    await hardhatToken.connect(addr1).transfer(user.address,10000000);
-      
-    expect(await hardhatToken.balanceOf(user.address)).to.equal(9700000);
-    expect(await hardhatToken.balanceOf(addr2.address)).to.equal(150000);
-    expect(await hardhatToken.balanceOf(addr3.address)).to.equal(150000);
-    expect(await hardhatToken.balanceOf(addr1.address)).to.equal(10000000);
-
-  });
 
   it("transferFrom should update the balance of addr1 ", async function () {
     const [owner, addr1, addr2, addr3] = await ethers.getSigners();
@@ -636,55 +531,5 @@ describe("CrazyZooToken contract", function () {
 
   });
 
-  it("transferFrom should update the balance of Pool and feeCollectors.trasnfering tokens from  user to pool ", async function () {
-    const [owner, addr1, addr2, addr3, addr4, addr5] = await ethers.getSigners();
-
-    const Token = await ethers.getContractFactory("CrazyZooToken");
-
-    const hardhatToken = await Token.deploy();
-
-    await hardhatToken.setPoolAddress(addr1.address);
-    await hardhatToken.setMarketingWallet(addr2.address);
-    await hardhatToken.setStakingContractAddress(addr3.address);
-
-    await hardhatToken.transfer(addr4.address,20000000);
-    
-    await hardhatToken.connect(addr4).approve(addr5.address,10000000);
-
-    await hardhatToken.connect(addr5).transferFrom(addr4.address,addr1.address,10000000);
-
-
-    expect(await hardhatToken.balanceOf(addr1.address)).to.equal(9700000);
-    expect(await hardhatToken.balanceOf(addr2.address)).to.equal(150000);
-    expect(await hardhatToken.balanceOf(addr3.address)).to.equal(150000);
-    expect(await hardhatToken.balanceOf(addr4.address)).to.equal(10000000);
-
-  });
   
-  it("transferFrom should update the balance of Pool and feeCollectors.trasnfering tokens from  Pool to user ", async function () {
-    const [owner, addr1, addr2, addr3, addr4, user, addr5] = await ethers.getSigners();
-
-    const Token = await ethers.getContractFactory("CrazyZooToken");
-
-    const hardhatToken = await Token.deploy();
-
-    await hardhatToken.transfer(addr1.address,20000000);
-    
-    await hardhatToken.setPoolAddress(addr1.address);
-    await hardhatToken.setMarketingWallet(addr3.address);
-    await hardhatToken.setStakingContractAddress(addr4.address);
-    
-
-    await hardhatToken.connect(addr1).approve(addr2.address,10000000);
-
-    await hardhatToken.connect(addr2).transferFrom(addr1.address,user.address,10000000);
-      
-    expect(await hardhatToken.balanceOf(addr1.address)).to.equal(10000000);
-    expect(await hardhatToken.balanceOf(addr2.address)).to.equal(0);
-    expect(await hardhatToken.balanceOf(addr3.address)).to.equal(150000);
-    expect(await hardhatToken.balanceOf(addr4.address)).to.equal(150000);
-    expect(await hardhatToken.balanceOf(user.address)).to.equal(9700000);
-
-  });
-
 });

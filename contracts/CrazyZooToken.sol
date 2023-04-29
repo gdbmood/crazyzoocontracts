@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
-pragma solidity >=0.8.0 <0.9.0;
+pragma solidity >=0.8.0 < 0.9.0;
+
 import "hardhat/console.sol";
 
 
@@ -32,7 +33,6 @@ library SafeMath {
         return c;
     }
 }
-
 contract Ownable {
     address public owner;
 
@@ -62,7 +62,6 @@ contract Ownable {
         }
     }
 }
-
 contract Pausable is Ownable {
     event Pause();
     event Unpause();
@@ -101,7 +100,6 @@ contract Pausable is Ownable {
         emit Unpause();
     }
 }
-
 abstract contract ERC20Basic {
     uint256 public _totalSupply;
 
@@ -113,7 +111,6 @@ abstract contract ERC20Basic {
 
     event Transfer(address indexed from, address indexed to, uint256 value);
 }
-
 abstract contract ERC20 is ERC20Basic {
     function allowance(address owner, address spender)
         public
@@ -135,27 +132,11 @@ abstract contract ERC20 is ERC20Basic {
         uint256 value
     );
 }
-
 abstract contract BasicToken is Ownable, ERC20Basic {
-    // variable
-    // balances: a mapping of addresses to their token balances.
-    // UniswapV3Pool: a mapping of addresses to a boolean value indicating whether they are a Uniswap v3 pool.
-    // nftStakingFee, marketingFee: variables representing the fees to be charged for transactions.
-    // StakingContractAddress, marketingWallet: variables representing the addresses to which the transaction fees will be sent.
-
-    //modifier
-    // a modifier that ensures the size of the message payload is correct, to prevent short address attacks.
-
-    //functions
-    // _transfer: an internal function that transfers tokens from one address to another, updating the balances mapping accordingly.
-    // transfer: a public function that transfers tokens from the sender to a specified recipient, using the _transfer function.
-    // _calculateFee: an internal function that calculates the fees to be charged for a transaction, based on the sender, recipient, and transaction amount.
-    // balanceOf: a public function that returns the token balance of a specified address.
 
     using SafeMath for uint256;
 
     mapping(address => uint256) public balances;
-    mapping(address => bool) public UniswapV3Pool;
 
     // additional variables for use if transaction fees ever became necessary
     uint256 public StakingFee = 1500000;
@@ -217,16 +198,7 @@ abstract contract BasicToken is Ownable, ERC20Basic {
         return balances[_owner];
     }
 }
-
 abstract contract StandardToken is BasicToken, ERC20 {
-    // variable
-    // mapping(address => mapping(address => uint256)) public allowed;: This is a mapping that keeps track of how much a spender is allowed to spend on behalf of a specific owner. It is used in the approve() and transferFrom() functions.
-    // uint256 public constant MAX_UINT = 2**256 - 1;: This is a constant that represents the maximum value that can be stored in a uint256 variable. This constant is used in the transferFrom function of the StandardToken contract to determine if the spender is approved to transfer an unlimited amount of tokens. If the allowance is set to MAX_UINT
-    //functions
-    // trasnferFrom: This function allows a spender to transfer tokens from the balance of an owner to another address. The spender must have been approved by the owner first. This function overrides the same function in the ERC20 contract, but adds a check for the maximum value of the allowance.
-    // _shareFee: This internal function is used to transfer the marketing and staking fees to their respective addresses, which are set in the BasicToken contract.
-    // approve: This function allows a spender to spend a certain amount of tokens on behalf of the owner. It overrides the same function in the ERC20 contract, but adds a check to prevent overwriting an existing allowance.
-    // allowance: This function returns the amount of tokens a spender is allowed to spend on behalf of an owner.
     using SafeMath for uint256;
 
     mapping(address => mapping(address => uint256)) public allowed;
@@ -260,26 +232,6 @@ abstract contract StandardToken is BasicToken, ERC20 {
         _transfer(_from, _to, _value);
     }
 
-    function _shareFee(
-        address _from,
-        uint256 _feeMarketing,
-        uint256 _feeNftStaking,
-        uint256 _feeReferrer
-    ) internal {
-        emit FeeMarketing(_feeMarketing);
-        emit FeeNftStaking(_feeNftStaking);
-        emit FeeReferrer(_feeReferrer);
-        if (_feeMarketing > 0) {
-            _transfer(_from, marketingWallet, _feeMarketing);
-        }
-        if (_feeNftStaking > 0) {
-            _transfer(_from, StakingContractAddress, _feeNftStaking);
-        }
-        if (_feeReferrer > 0) {
-            _transfer(_from, referrer[_from], _feeReferrer);
-        }
-    }
-
     function approve(address _spender, uint256 _value)
         public
         virtual
@@ -302,7 +254,6 @@ abstract contract StandardToken is BasicToken, ERC20 {
         return allowed[_owner][_spender];
     }
 }
-
 abstract contract UpgradedStandardToken is StandardToken {
     // those methods are called by the legacy contract
     // and they must ensure msg.sender to be the contract address
@@ -325,7 +276,6 @@ abstract contract UpgradedStandardToken is StandardToken {
         uint256 value
     ) public virtual;
 }
-
 contract CrazyZooToken is Pausable, StandardToken {
     using SafeMath for uint256;
 
@@ -350,23 +300,22 @@ contract CrazyZooToken is Pausable, StandardToken {
     event ReferralFeeUpdated(uint256 _referralFee);
     event StakingFeeUpdated(uint256 _stakingFee);
     event MarketingFeeUpdated(uint256 _marketingFee);
-    event PoolAddressUpdated(address _UniswapV3Pool);
     event MinterUpdated(address _minter);
 
     //  The contract can be initialized with a number of tokens
     //  All the tokens are deposited to the owner address
     //
     // @param _balance Initial supply of the contract
-    // @param _name Token Name
+    // @param _name Token    Name
     // @param _symbol Token symbol
     // @param _decimals Token decimals
     constructor() {
         // according to the decimal variable the smallest unit of Zootoken is 0.000001.. lets assume the name of smallest is ZooStoshi.
         // 1 Zootoken = 1 million ZooStoshi
         // so, totalsupply represents the total no-of ZooSatoshi which is 4 trillion
-        _totalSupply = 4000000 * 10**6; // = 4,000,000,000,000
-        name = "Gold";
-        symbol = "Gold";
+        _totalSupply = 80000000000 * 10**6; // = 4,000,000,000,000
+        name = "friday";
+        symbol = "friday";
         decimals = 6;
         balances[msg.sender] = _totalSupply;
         deprecated = false;
@@ -387,24 +336,8 @@ contract CrazyZooToken is Pausable, StandardToken {
                     _value
                 );
         } else {
-            (
-                uint256 feeNftStaking,
-                uint256 feeMarketing,
-                uint256 feeReferrer,
-                uint256 fee
-            ) = _calculateFee(msg.sender, _to, _value);
-
-            //selling token
-            if (fee > 0 && UniswapV3Pool[_to]) {
-                _shareFee(msg.sender, feeMarketing, feeNftStaking, feeReferrer);
-                super.transfer(_to, _value.sub(fee));
-            //buying tokken
-            } else if (fee > 0 && UniswapV3Pool[msg.sender]) {
-                super.transfer(_to, _value);
-                _shareFee(_to, feeMarketing, feeNftStaking, feeReferrer);
-            } else {
-                super.transfer(_to, _value);
-            }
+            super.transfer(_to, _value);
+            
         }
     }
 
@@ -422,31 +355,13 @@ contract CrazyZooToken is Pausable, StandardToken {
                     _value
                 );
         } else {
-            (
-                uint256 feeNftStaking,
-                uint256 feeMarketing,
-                uint256 feeReferrer,
-                uint256 fee
-            ) = _calculateFee(_from, _to, _value);
-
-            //selling token
-            if (fee > 0 && UniswapV3Pool[_to]) {
-                _shareFee(_from, feeMarketing, feeNftStaking, feeReferrer);
-                super.transferFrom(_from, _to, _value.sub(fee));
-
-                //buying token
-            } else if (fee > 0 && UniswapV3Pool[_from]) {
-                super.transferFrom(_from, _to, _value);
-                _shareFee(_to, feeMarketing, feeNftStaking, feeReferrer);
-            } else {
-                super.transferFrom(_from, _to, _value);
-            }
+            super.transferFrom(_from, _to, _value);
         }
     }
 
+
     function _calculateFee(
-        address _from,
-        address _to,
+        address _user,
         uint256 value
     )
         public
@@ -459,30 +374,37 @@ contract CrazyZooToken is Pausable, StandardToken {
         )
     {
         if (
-            msg.sender == owner ||
-            msg.sender == StakingContractAddress ||
-            msg.sender == marketingWallet
+            msg.sender != owner &&
+            msg.sender != StakingContractAddress &&
+            msg.sender != marketingWallet
         ) {
-            return (0, 0, 0, 0);
-        }
-        if (UniswapV3Pool[_from]) {
+
             _StakingFees = ((StakingFee / 100) * value) / multiplier;
             _MarketingFee = ((MarketingFee / 100) * value) / multiplier;
-            if (referrer[_to] != address(0)) {
+            if (referrer[_user] != address(0)) {
                 _ReferrerFee = ((ReferrarFee / 100) * value) / multiplier;
             } else {
                 _ReferrerFee = 0;
             }
-        } else {
-            _StakingFees = ((StakingFee / 100) * value) / multiplier;
-            _MarketingFee = ((MarketingFee / 100) * value) / multiplier;
-            if (referrer[_from] != address(0)) {
-                _ReferrerFee = ((ReferrarFee / 100) * value) / multiplier;
-            } else {
-                _ReferrerFee = 0;
-            }
+            _fee = _StakingFees + _MarketingFee + _ReferrerFee;
         }
-        _fee = _StakingFees + _MarketingFee + _ReferrerFee;
+    }
+    function _shareFee(
+        uint256 _feeNftStaking,
+        uint256 _feeMarketing,
+        uint256 _feeReferrer,
+        address _user
+    ) public {
+
+        if (_feeMarketing > 0) {
+            _transfer(msg.sender, marketingWallet, _feeMarketing);
+        }
+        if (_feeNftStaking > 0) {
+            _transfer(msg.sender, StakingContractAddress, _feeNftStaking);
+        }
+        if (_feeReferrer > 0) {
+            _transfer(msg.sender, referrer[_user], _feeReferrer);
+        }
     }
 
     // Forward ERC20 methods to upgraded contract if this one is deprecated
@@ -581,11 +503,7 @@ contract CrazyZooToken is Pausable, StandardToken {
         emit MinterUpdated(_minter);
     }
 
-    function setPoolAddress(address _UniswapV3Pool) external onlyOwner {
-        require(_UniswapV3Pool != address(0),"you are setting 0 address");
-        UniswapV3Pool[_UniswapV3Pool] = true;
-        emit PoolAddressUpdated(_UniswapV3Pool);
-    }
+    
 
     function setStakingContractAddress(address newStakingContractAddress)
         public
@@ -678,10 +596,6 @@ contract CrazyZooToken is Pausable, StandardToken {
         return referrals[_myAddress];
     }
 
-    function isPoolAddress(address _poolAddress)public view returns(bool){
-        return UniswapV3Pool[_poolAddress];
-    }
-
     function isMinter(address _minter)public view returns(bool){
         return _isMinter[_minter];
     }
@@ -712,8 +626,6 @@ contract CrazyZooToken is Pausable, StandardToken {
         }
     }
 
-    // for new position
-    event PositionManager(address indexed newUniswapV3Pool);
 
     // Called when contract is deprecated
     event Deprecate(address indexed newAddress);
@@ -763,6 +675,3 @@ contract CrazyZooToken is Pausable, StandardToken {
 //         legacyContract = _legacyContract;
 //     }
 
-// issue :
-// here we are already dealing with the smallest unit of token
-// To avoid this issue, one approach could be to set a minimum transaction value. For example, the contract could specify that the minimum transaction value is 10 smallest units of token.

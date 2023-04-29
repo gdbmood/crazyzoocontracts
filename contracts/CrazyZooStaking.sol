@@ -244,41 +244,6 @@ contract CrazyZooStaking {
 
     }
 
-    // function calculateRewards(address staker_) public view returns (uint256) {
-    //     Staker memory staker = stakers[staker_];
-    //     StakedNft[] memory _stakedNfts = stakedNfts[staker_];
-
-    //     uint256 accRewards;
-    //     for (uint256 i; i < staker.amountStaked; i++) {
-    //         uint256 _index = nftCollection.getIndexForId(_stakedNfts[i].id);
-
-    //         if (
-    //             !_stakedNfts[i].expired &&
-    //             stakerAddress[_stakedNfts[i].id] == staker_ &&
-    //             (block.timestamp - _stakedNfts[i].timeStaked <= rewardDays[_index - 1])
-    //         ) {
-
-    //             uint256 TimeSinceLastFed = block.timestamp - _stakedNfts[i].lastTimeFed;
-    //             uint256 daysOfRewards;
-
-    //             if (TimeSinceLastFed <= 30 days) {
-    //                     daysOfRewards = block.timestamp - staker.timeOfLastUpdate;
-
-    //             } else {
-    //                 uint256 timeNFTexpired = _stakedNfts[i].lastTimeFed + 30 days;
-    //                 if(staker.timeOfLastUpdate < timeNFTexpired){
-    //                     daysOfRewards = timeNFTexpired - staker.timeOfLastUpdate;
-    //                 }
-    //             }
-
-    //             if(daysOfRewards > 1 days){
-    //                 uint256 rewardRatePerDay = ((rewardsPerDay[_index - 1] / 100) * nftCollection.getFeeForId(_index))/ZooTokenDecimal;
-    //                 accRewards += (daysOfRewards * rewardRatePerDay) / 86400;
-    //             }
-    //         }
-    //     }
-    //     return accRewards;
-    // }
 
     function calculateRewards(address staker_) public view returns (uint256) {
         Staker memory staker = stakers[staker_];
@@ -398,79 +363,91 @@ contract CrazyZooStaking {
             stakers[msg.sender].unclaimedRewards;
         updateUserPool(msg.sender);
 
-        // require(rewards > 0, "You have no rewards to claim");
-        // stakers[msg.sender].timeOfLastUpdate = block.timestamp;
-        // stakers[msg.sender].unclaimedRewards = 0;
-        // ZooToken.transfer(msg.sender, rewards);
+        require(rewards > 0, "You have no rewards to claim");
+        stakers[msg.sender].timeOfLastUpdate = block.timestamp;
+        stakers[msg.sender].unclaimedRewards = 0;
+        ZooToken.transfer(msg.sender, rewards);
     }
 
-    function getWhaleFee(uint256 _userFunds) public view returns (uint256) {
-        uint256 rewardTokenBalance = ZooToken.balanceOf(address(this));
+    function reinvestRewards() external {
+        uint256 rewards = calculateRewards(msg.sender) +
+            stakers[msg.sender].unclaimedRewards;
+        updateUserPool(msg.sender);
+
+        require(rewards > 0, "You have no rewards to claim");
+        stakers[msg.sender].timeOfLastUpdate = block.timestamp;
+        stakers[msg.sender].unclaimedRewards = 0;
+        //here instead of calling this function we will call swap function
+        ZooToken.transfer(msg.sender, rewards);
+    }
+
+    function getWhaleFee(uint256 _withdrawAmount,uint256 _depositAmount) public view returns (uint256) {
+        uint256 StakingContractBalance = ZooToken.balanceOf(address(this));
         if (
-            _userFunds <
-            ((((1 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+            _depositAmount <
+            ((((1 * ZooTokenDecimal) / 100) * StakingContractBalance) /
                 ZooTokenDecimal)
         ) {
             return 0;
         } else if (
-            _userFunds <
-            ((((2 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+            _depositAmount <
+            ((((2 * ZooTokenDecimal) / 100) * StakingContractBalance) /
                 ZooTokenDecimal)
         ) {
             return
-                ((_userFunds / 100) * whalesWithdrawalExtraFee) /
+                ((_withdrawAmount / 100) * whalesWithdrawalExtraFee) /
                 ZooTokenDecimal;
         } else if (
-            _userFunds <
-            ((((3 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+            _depositAmount <
+            ((((3 * ZooTokenDecimal) / 100) * StakingContractBalance) /
                 ZooTokenDecimal)
         ) {
             return
-                ((_userFunds / 100) * (whalesWithdrawalExtraFee * 2)) /
+                ((_withdrawAmount / 100) * (whalesWithdrawalExtraFee * 2)) /
                 ZooTokenDecimal;
         } else if (
-            _userFunds <
-            ((((4 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+            _depositAmount <
+            ((((4 * ZooTokenDecimal) / 100) * StakingContractBalance) /
                 ZooTokenDecimal)
         ) {
             return
-                ((_userFunds / 100) * (whalesWithdrawalExtraFee * 3)) /
+                ((_withdrawAmount / 100) * (whalesWithdrawalExtraFee * 3)) /
                 ZooTokenDecimal;
         } else if (
-            _userFunds <
-            ((((5 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+            _depositAmount <
+            ((((5 * ZooTokenDecimal) / 100) * StakingContractBalance) /
                 ZooTokenDecimal)
         ) {
             return
-                ((_userFunds / 100) * (whalesWithdrawalExtraFee * 4)) /
+                ((_withdrawAmount / 100) * (whalesWithdrawalExtraFee * 4)) /
                 ZooTokenDecimal;
         } else if (
-            _userFunds <
-            ((((6 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+            _depositAmount <
+            ((((6 * ZooTokenDecimal) / 100) * StakingContractBalance) /
                 ZooTokenDecimal)
         ) {
             return
-                ((_userFunds / 100) * (whalesWithdrawalExtraFee * 5)) /
+                ((_withdrawAmount / 100) * (whalesWithdrawalExtraFee * 5)) /
                 ZooTokenDecimal;
         } else if (
-            _userFunds <
-            ((((7 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+            _depositAmount <
+            ((((7 * ZooTokenDecimal) / 100) * StakingContractBalance) /
                 ZooTokenDecimal)
         ) {
             return
-                ((_userFunds / 100) * (whalesWithdrawalExtraFee * 6)) /
+                ((_withdrawAmount / 100) * (whalesWithdrawalExtraFee * 6)) /
                 ZooTokenDecimal;
         } else if (
-            _userFunds <
-            ((((8 * ZooTokenDecimal) / 100) * rewardTokenBalance) /
+            _depositAmount <
+            ((((8 * ZooTokenDecimal) / 100) * StakingContractBalance) /
                 ZooTokenDecimal)
         ) {
             return
-                ((_userFunds / 100) * (whalesWithdrawalExtraFee * 7)) /
+                ((_withdrawAmount / 100) * (whalesWithdrawalExtraFee * 7)) /
                 ZooTokenDecimal;
         } else {
             return
-                ((_userFunds / 100) * (whalesWithdrawalExtraFee * 8)) /
+                ((_withdrawAmount / 100) * (whalesWithdrawalExtraFee * 8)) /
                 ZooTokenDecimal;
         }
     }
@@ -484,7 +461,7 @@ contract CrazyZooStaking {
         uint256 userFunds = __staker.fundsDeposited;
 
         // Check if whale txn and deduce tax accordingly
-        uint256 whaleFee = getWhaleFee(userFunds);
+        uint256 whaleFee = getWhaleFee(rewards,userFunds);
         uint256 len = _tokenIds.length;
         __staker.unclaimedRewards += rewards - (whaleFee * len);
 
