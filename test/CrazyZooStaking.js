@@ -10,7 +10,7 @@ describe("CrazyZooStaking contract", function () {
 
     const Staking = await ethers.getContractFactory("CrazyZooStaking");
 
-    const StakingContract = await Staking.deploy(addr4.address, addr3.address, addr2.address, addr1.address, owner.address);
+    const StakingContract = await Staking.deploy(addr4.address, addr3.address, addr2.address, addr1.address);
 
 
     expect(await StakingContract.getNFTAddress()).to.equal(addr4.address);
@@ -44,7 +44,7 @@ describe("CrazyZooStaking contract", function () {
     const NFT = await ethers.getContractFactory("CrazyZooNFT");
 
     const ZooToken = await Token.deploy();
-    const ZooStaking = await Staking.deploy(addr1.address, addr2.address, addr3.address, ZooToken.address, owner.address);
+    const ZooStaking = await Staking.deploy(addr1.address, addr2.address, addr3.address, ZooToken.address);
     const ZooNFT = await NFT.deploy()
 
 
@@ -78,7 +78,7 @@ describe("CrazyZooStaking contract", function () {
     const NFT = await ethers.getContractFactory("CrazyZooNFT");
 
     const ZooToken = await Token.deploy();
-    const ZooStaking = await Staking.deploy(addr1.address, addr2.address, addr3.address, ZooToken.address, owner.address);
+    const ZooStaking = await Staking.deploy(addr1.address, addr2.address, addr3.address, ZooToken.address);
     const ZooNFT = await NFT.deploy()
 
 
@@ -117,7 +117,7 @@ describe("CrazyZooStaking contract", function () {
 
     const ZooToken = await _token.deploy();
     const NFT = await _nft.deploy();
-    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address, owner.address);
+    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address);
 
     const Days = 15
     await TestingStakingContract._1_testCalculateRewards(user1.address, Days);
@@ -134,7 +134,6 @@ describe("CrazyZooStaking contract", function () {
 
     //there is slightly difference because of epox time thats why we are using equal.
     expect(calculateRewards / ZooTokenDecimal).to.be.within(e_expectedReward / ZooTokenDecimal - 0.1, e_expectedReward / ZooTokenDecimal + 0.1);
-
   });
 
   it("calculateRewards should return the correct value of rewards based on the stakerData and stakedNFT. it has been morethen 30 days since the nft didn't feed", async function () {
@@ -146,7 +145,7 @@ describe("CrazyZooStaking contract", function () {
 
     const ZooToken = await _token.deploy();
     const NFT = await _nft.deploy();
-    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address, owner.address);
+    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address);
 
     const Days = 15
     await TestingStakingContract._2_testCalculateRewards(user1.address, Days);
@@ -175,7 +174,7 @@ describe("CrazyZooStaking contract", function () {
 
     const ZooToken = await _token.deploy();
     const NFT = await _nft.deploy();
-    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address, owner.address);
+    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address);
 
     const Days = 15
     await TestingStakingContract._2_testCalculateRewards(user1.address, Days);
@@ -206,7 +205,7 @@ describe("CrazyZooStaking contract", function () {
 
     const ZooToken = await _token.deploy();
     const NFT = await _nft.deploy();
-    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address, owner.address);
+    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address);
 
     const Days = 15
     await TestingStakingContract._3_testCalculateRewards(user1.address, Days);
@@ -226,7 +225,7 @@ describe("CrazyZooStaking contract", function () {
 
   });
 
-  it("setRewardsPerDay should set the rewardPerDay", async function () {
+   it("setRewardsPerDay should set the rewardPerDay", async function () {
     const [owner, USDCadd, SWAPadd, user1, user2] = await ethers.getSigners();
 
     const _token = await ethers.getContractFactory("CrazyZooToken");
@@ -235,7 +234,7 @@ describe("CrazyZooStaking contract", function () {
 
     const ZooToken = await _token.deploy();
     const NFT = await _nft.deploy();
-    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address, owner.address);
+    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address);
 
     const Days = 15
     await TestingStakingContract._1_testCalculateRewards(user1.address, Days);
@@ -243,7 +242,6 @@ describe("CrazyZooStaking contract", function () {
     await NFT.setFees([250000000, 250000000, 250000000]);
 
     const ZooTokenDecimal = await TestingStakingContract.getZooTokenDecimal()
-
 
     const calculateRewards_berfore_setRewardsPerDay = await TestingStakingContract.calculateRewards(user1.address)
 
@@ -257,7 +255,7 @@ describe("CrazyZooStaking contract", function () {
     expect(user1_availableReward / ZooTokenDecimal).to.be.within(calculateRewards_berfore_setRewardsPerDay / ZooTokenDecimal - 0.1, calculateRewards_berfore_setRewardsPerDay / ZooTokenDecimal + 0.1);
     expect(_calculateRewards_after_setRewardsPerDay).to.equal(0);
 
-  });
+   });
 
   it("setRewardDays should set the rewardDays.", async function () {
     const [owner, USDCadd, SWAPadd, user1, user2] = await ethers.getSigners();
@@ -268,7 +266,7 @@ describe("CrazyZooStaking contract", function () {
 
     const ZooToken = await _token.deploy();
     const NFT = await _nft.deploy();
-    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address, owner.address);
+    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address);
 
     const Days = 15
     await TestingStakingContract._1_testCalculateRewards(user1.address, Days);
@@ -301,7 +299,7 @@ describe("CrazyZooStaking contract", function () {
 
     const ZooToken = await _token.deploy();
     const NFT = await _nft.deploy();
-    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address, owner.address);
+    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address);
 
     await TestingStakingContract._1_testIsHungry(user1.address);
     const Ishungry = await TestingStakingContract.isHungry(0);
@@ -318,7 +316,7 @@ describe("CrazyZooStaking contract", function () {
 
     const ZooToken = await _token.deploy();
     const NFT = await _nft.deploy();
-    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address, owner.address);
+    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address);
 
     await TestingStakingContract._2_testIsHungry(user1.address);
     const Ishungry = await TestingStakingContract.isHungry(0);
@@ -337,7 +335,7 @@ describe("CrazyZooStaking contract", function () {
     const ZooToken = await _token.deploy();
     const USDC = await _usdc.deploy();
     const NFT = await _nft.deploy();
-    const TestingStakingContract = await _testing.deploy(NFT.address, USDC.address, SWAPadd.address, ZooToken.address, owner.address);
+    const TestingStakingContract = await _testing.deploy(NFT.address, USDC.address, SWAPadd.address, ZooToken.address);
 
     await NFT.setRange(1, 10);
     await expect(TestingStakingContract.feedYourAnimal(1)).to.be.revertedWith('Approve Staking Contract');
@@ -355,19 +353,16 @@ describe("CrazyZooStaking contract", function () {
     const ZooToken = await _token.deploy();
     const USDC = await _usdc.deploy();
     const NFT = await _nft.deploy();
-    const TestingStakingContract = await _testing.deploy(NFT.address, USDC.address, SWAPadd.address, ZooToken.address, owner.address);
+    const TestingStakingContract = await _testing.deploy(NFT.address, USDC.address, SWAPadd.address, ZooToken.address);
 
     await NFT.setRange(1, 10);
     await USDC.transfer(user1.address, toWei('3.5', 'ether'));
     await USDC.connect(user1).approve(TestingStakingContract.address, toWei('3.5', 'ether'));
     const expectedTime = Math.floor(new Date().getTime() / 1000);
 
-
     await TestingStakingContract._1_testfeedYourAnimal(user1.address)
     await TestingStakingContract.connect(user1).feedYourAnimal(1);
     const [feedCounter, time] = await TestingStakingContract._1_1_testfeedYourAnimal(user1.address);
-
-
 
     expect(time).to.be.at.least(expectedTime);
     expect(feedCounter).to.equal(1);
@@ -384,7 +379,7 @@ describe("CrazyZooStaking contract", function () {
 
     const ZooToken = await _token.deploy();
     const NFT = await _nft.deploy();
-    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address, owner.address);
+    const TestingStakingContract = await _testing.deploy(NFT.address, USDCadd.address, SWAPadd.address, ZooToken.address);
 
     //before claiming reward
     const Days = 15
@@ -400,8 +395,6 @@ describe("CrazyZooStaking contract", function () {
     const e_rewardRatePerDay = ((Lemur / 100) * FeeForId) / ZooTokenDecimal
     const expectedReward_before_claiming = e_rewardRatePerDay * Days
     const calculateRewards_before_claiming = await TestingStakingContract.calculateRewards(user1.address)
-
-
 
     //after claiming reward
     await ZooToken.transfer(TestingStakingContract.address, parseInt(calculateRewards_before_claiming) + 2000000)
@@ -432,7 +425,7 @@ describe("CrazyZooStaking contract", function () {
 
     const ZooToken = await _token.deploy();
     const ZooNFT = await _nft.deploy();
-    const TestingStakingContract = await _testing.deploy(ZooNFT.address, USDCadd.address, SWAPadd.address, ZooToken.address, owner.address);
+    const TestingStakingContract = await _testing.deploy(ZooNFT.address, USDCadd.address, SWAPadd.address, ZooToken.address);
 
     //minting 1 nft
     await ZooNFT.setZooToken(ZooToken.address);

@@ -3,9 +3,11 @@ pragma solidity ^0.8.0;
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/IQuoter.sol";
+
 import "hardhat/console.sol";
+
 library SafeMath {
-    
     function mul(uint256 a, uint256 b) internal pure returns (uint256) {
         if (a == 0) {
             return 0;
@@ -33,6 +35,7 @@ library SafeMath {
         return c;
     }
 }
+
 interface IUniswapV3Factory {
     function getPool(
         address tokenA,
@@ -53,46 +56,33 @@ interface IUniswapV3Factory {
             bool unlocked
         );
 }
+
 interface IERC20ZooToken {
     function balanceOf(address account) external view returns (uint256);
 
     function transfer(address recipient, uint256 amount) external;
 
-    function transferFrom(
-        address _from,
-        address _to,
-        uint256 _value
-    ) external;
+    function transferFrom(address _from, address _to, uint256 _value) external;
 
     function _calculateFee(
         address user,
         uint256 value
-    )
-        external
-        view
-        returns (
-            uint256 ,
-            uint256 ,
-            uint256 ,
-            uint256 
-        );
+    ) external view returns (uint256, uint256, uint256, uint256);
 
     function _shareFee(
         uint256 _feeNftStaking,
         uint256 _feeMarketing,
         uint256 _feeReferrer,
         address _user
-    ) external ;
+    ) external;
 
-    function getFeeCollectors(address user)
-        external
-        returns (
-            address,
-            address,
-            address
-        );
+    function getFeeCollectors(
+        address user
+    ) external returns (address, address, address);
+
     function approve(address spender, uint256 amount) external returns (bool);
 }
+
 interface IERC20Mock {
     /**
      * @dev Emitted when `value` tokens are moved from one account (`from`) to
@@ -106,7 +96,11 @@ interface IERC20Mock {
      * @dev Emitted when the allowance of a `spender` for an `owner` is set by
      * a call to {approve}. `value` is the new allowance.
      */
-    event Approval(address indexed owner, address indexed spender, uint256 value);
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 value
+    );
 
     /**
      * @dev Returns the amount of tokens in existence.
@@ -134,7 +128,10 @@ interface IERC20Mock {
      *
      * This value changes when {approve} or {transferFrom} are called.
      */
-    function allowance(address owner, address spender) external view returns (uint256);
+    function allowance(
+        address owner,
+        address spender
+    ) external view returns (uint256);
 
     /**
      * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
@@ -161,19 +158,25 @@ interface IERC20Mock {
      *
      * Emits a {Transfer} event.
      */
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) external returns (bool);
 }
-contract UniswapIntermediary {
 
+contract UniswapIntermediary {
     using SafeMath for uint256;
 
-    address public  routerAddress= 0xE592427A0AEce92De3Edee1F18E0157C05861564;
-    address public  Zoo = 0xa605DE0787Ed0b239c174CDe14f86e97FF8A44fb;
-    address public factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    address public RouterAddress;
+    address public Zoo ;
+    address public Factory ;
+    address public QuoterAddress;
     mapping(address => bool) public OtherTokens;
-    
+
     // For this example, we will set the pool fee to 0.3%.
-    uint24 public constant poolFee = 3000;
+    uint24 public poolFee;
+    uint256 public _amountOutMinimum = 0;
 
     event _SellingZooToken(uint256 amountOut);
     event _SellingOtherToken(uint256 amountOut);
@@ -182,29 +185,30 @@ contract UniswapIntermediary {
     event _setRouterAddress(address routerAddress);
     event _setOwner(address owner);
     event _setOtherToken(address _Other);
+    event _setPoolFee(uint24 poolFee);
+    event _setAmountOutMinimum(uint256 _amountOutMinimum);
 
     address public owner;
     modifier onlyOwner() {
         require(msg.sender == owner);
         _;
     }
-    
-    constructor(
-        address _routerAddress,
-        address _Zoo,
-        address _factory
-    ) {
+
+    constructor(address _routerAddress, address _Zoo, address _factory, address _QuoterAddress, uint24 _poolFee) {
         owner = msg.sender;
-        routerAddress = _routerAddress;
+        RouterAddress = _routerAddress;
         Zoo = _Zoo;
-        factory = _factory;
+        Factory = _factory;
+        QuoterAddress = _QuoterAddress;
+        poolFee = _poolFee;
     }
 
     //for selling token
-    function swapExactInputSingle(uint256 amountIn,address tokenToGive,address TokenToTake)
-        internal
-        returns (uint256 amountOut)
-    {
+    function swapExactInputSingle(
+        uint256 amountIn,
+        address tokenToGive,
+        address TokenToTake
+    ) internal returns (uint256 amountOut) {
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
             .ExactInputSingleParams({
                 tokenIn: tokenToGive,
@@ -213,60 +217,78 @@ contract UniswapIntermediary {
                 recipient: address(this),
                 deadline: block.timestamp + 120,
                 amountIn: amountIn,
-                amountOutMinimum: 0,
+                amountOutMinimum: _amountOutMinimum,
                 sqrtPriceLimitX96: 0
             });
 
-        amountOut = ISwapRouter(routerAddress).exactInputSingle(params);
+        amountOut = ISwapRouter(RouterAddress).exactInputSingle(params);
     }
 
-    function SellingZooToken(uint256 amountIn,address OtherToken)public {
-
+    function SellingZooToken(uint256 amountIn, address OtherToken) public {
         require(OtherTokens[OtherToken], "token is undefined");
-        
+
         //transfering Zoo token to this contract
         IERC20ZooToken(Zoo).transferFrom(msg.sender, address(this), amountIn);
-        
+
         //calculating
-        (   uint256 _StakingFees,
+        (   
+            uint256 _StakingFees,
             uint256 _MarketingFee,
             uint256 _ReferrerFee,
-            uint256 _fee         ) = IERC20ZooToken(Zoo)._calculateFee(msg.sender,amountIn);
-        
-        
-        TransferHelper.safeApprove(Zoo, routerAddress, amountIn - _fee);
+            uint256 _fee
+        ) = IERC20ZooToken(Zoo)._calculateFee(msg.sender, amountIn);
 
-        uint256 amountOut = swapExactInputSingle(amountIn - _fee,Zoo,OtherToken);
+        TransferHelper.safeApprove(Zoo, RouterAddress, amountIn - _fee);
+
+        uint256 amountOut = swapExactInputSingle(
+            amountIn - _fee,
+            Zoo,
+            OtherToken
+        );
 
         //sharing fees
-        IERC20ZooToken(Zoo)._shareFee( _StakingFees, _MarketingFee, _ReferrerFee, msg.sender);
+        IERC20ZooToken(Zoo)._shareFee(
+            _StakingFees,
+            _MarketingFee,
+            _ReferrerFee,
+            msg.sender
+        );
 
         //transfering other token to user
         IERC20Mock(OtherToken).transfer(msg.sender, amountOut);
-        
+
         emit _SellingZooToken(amountOut);
     }
 
-    function SellingOtherToken(uint256 amountIn,address OtherToken)public {
-
+    function SellingOtherToken(uint256 amountIn, address OtherToken) public {
         require(OtherTokens[OtherToken], "token is undefined");
 
         //transfering Other token to this contract
-        IERC20Mock(OtherToken).transferFrom(msg.sender, address(this), amountIn);
-        
-        TransferHelper.safeApprove(OtherToken, routerAddress, amountIn);
-        
-        uint256 amountOut = swapExactInputSingle(amountIn,OtherToken,Zoo);
-        
+        IERC20Mock(OtherToken).transferFrom(
+            msg.sender,
+            address(this),
+            amountIn
+        );
+
+        TransferHelper.safeApprove(OtherToken, RouterAddress, amountIn);
+
+        uint256 amountOut = swapExactInputSingle(amountIn, OtherToken, Zoo);
+
         //calculating
-        (   uint256 _StakingFees,
+        (
+            uint256 _StakingFees,
             uint256 _MarketingFee,
             uint256 _ReferrerFee,
-            uint256 _fee         ) = IERC20ZooToken(Zoo)._calculateFee(msg.sender,amountOut);
-        
+            uint256 _fee
+        ) = IERC20ZooToken(Zoo)._calculateFee(msg.sender, amountOut);
+
         //sharing fees
-        IERC20ZooToken(Zoo)._shareFee( _StakingFees, _MarketingFee, _ReferrerFee, msg.sender);
-        
+        IERC20ZooToken(Zoo)._shareFee(
+            _StakingFees,
+            _MarketingFee,
+            _ReferrerFee,
+            msg.sender
+        );
 
         //transfering Zoo token to user
         IERC20ZooToken(Zoo).transfer(msg.sender, amountOut - _fee);
@@ -274,27 +296,34 @@ contract UniswapIntermediary {
         emit _SellingOtherToken(amountOut);
     }
 
-    function TokenSwapBYPressure(uint256 amountIn,address OtherToken)public {
-
+    function TokenSwapBYPressure(uint256 amountIn, address OtherToken) public returns(uint256) {
         require(OtherTokens[OtherToken], "token is undefined");
 
         //transfering Other token to this contract
-        IERC20Mock(OtherToken).transferFrom(msg.sender, address(this), amountIn);
-        
-        TransferHelper.safeApprove(OtherToken, routerAddress, amountIn);
-        
-        uint256 amountOut = swapExactInputSingle(amountIn,OtherToken,Zoo);
-        
+        IERC20Mock(OtherToken).transferFrom(
+            msg.sender,
+            address(this),
+            amountIn
+        );
+
+        TransferHelper.safeApprove(OtherToken, RouterAddress, amountIn);
+
+        uint256 amountOut = swapExactInputSingle(amountIn, OtherToken, Zoo);
+
         //transfering Zoo token to user
         IERC20ZooToken(Zoo).transfer(msg.sender, amountOut);
 
         emit _SellingOtherToken(amountOut);
+
+        return amountOut;
     }
 
-    function swapExactOutputSingle(uint256 amountOut, uint256 amountInMaximum,address tokenToGive,address TokenToTake)
-        internal
-        returns (uint256 amountIn)
-    {
+    function swapExactOutputSingle(
+        uint256 amountOut,
+        uint256 amountInMaximum,
+        address tokenToGive,
+        address TokenToTake
+    ) internal returns (uint256 amountIn) {
         ISwapRouter.ExactOutputSingleParams memory params = ISwapRouter
             .ExactOutputSingleParams({
                 tokenIn: tokenToGive,
@@ -307,99 +336,156 @@ contract UniswapIntermediary {
                 sqrtPriceLimitX96: 0
             });
 
-        amountIn = ISwapRouter(routerAddress).exactOutputSingle(params);
+        amountIn = ISwapRouter(RouterAddress).exactOutputSingle(params);
     }
 
-    function ByingZoo(uint256 amountOut,uint256 amountInMaximum,address OtherToken)public returns (bool){
-        
+    function ByingZoo(
+        uint256 amountOut,
+        uint256 amountInMaximum,
+        address OtherToken
+    ) public returns (bool) {
         require(OtherTokens[OtherToken], "token is undefined");
 
-        IERC20Mock(OtherToken).transferFrom(msg.sender, address(this), amountInMaximum);
+        IERC20Mock(OtherToken).transferFrom(
+            msg.sender,
+            address(this),
+            amountInMaximum
+        );
 
-        TransferHelper.safeApprove(OtherToken, routerAddress, amountInMaximum);
+        TransferHelper.safeApprove(OtherToken, RouterAddress, amountInMaximum);
 
-        uint256 spendAmount = swapExactOutputSingle(amountOut,amountInMaximum,OtherToken,Zoo);
+        uint256 spendAmount = swapExactOutputSingle(
+            amountOut,
+            amountInMaximum,
+            OtherToken,
+            Zoo
+        );
 
         if (spendAmount < amountInMaximum) {
-            IERC20Mock(OtherToken).approve(routerAddress, 0);
-            IERC20Mock(OtherToken).transfer(msg.sender, amountInMaximum - spendAmount);
+            IERC20Mock(OtherToken).approve(RouterAddress, 0);
+            IERC20Mock(OtherToken).transfer(
+                msg.sender,
+                amountInMaximum - spendAmount
+            );
         }
 
         //calculating
-        (   uint256 _StakingFees,
+        (
+            uint256 _StakingFees,
             uint256 _MarketingFee,
             uint256 _ReferrerFee,
-            uint256 _fee         ) = IERC20ZooToken(Zoo)._calculateFee(msg.sender,amountOut);
-        
+            uint256 _fee
+        ) = IERC20ZooToken(Zoo)._calculateFee(msg.sender, amountOut);
+
         //sharing fees
-        IERC20ZooToken(Zoo)._shareFee( _StakingFees, _MarketingFee, _ReferrerFee,msg.sender);
-        
-        IERC20ZooToken(Zoo).transfer(msg.sender, amountOut - _fee );
-        
+        IERC20ZooToken(Zoo)._shareFee(
+            _StakingFees,
+            _MarketingFee,
+            _ReferrerFee,
+            msg.sender
+        );
+
+        IERC20ZooToken(Zoo).transfer(msg.sender, amountOut - _fee);
+
         emit _ByingZoo(true);
-        
+
+        return true;
+    }
+    function setZooToken(address _Zoo) public onlyOwner {
+        Zoo = _Zoo;
+        emit _setZooToken(Zoo);
+    }
+    function setOtherToken(address _Other, bool _value) public onlyOwner {
+        OtherTokens[_Other] = _value;
+        emit _setOtherToken(_Other);
+    }
+    function setRouterAddress(address _routerAddress) public onlyOwner {
+        RouterAddress = _routerAddress;
+        emit _setRouterAddress(RouterAddress);
+    }
+    function setOwner(address _owner) public onlyOwner {
+        owner = _owner;
+        emit _setOwner(owner);
+    }
+    function setFactory(address _uniswapAddress) public returns (bool) {
+        require(_uniswapAddress != address(0), "0 address is not acceptable");
+        Factory = _uniswapAddress;
         return true;
     }
 
-    function getPool(address tokenA,address tokenB,uint24 fee) public view returns(address) {
-       return  IUniswapV3Factory(factory).getPool(tokenA,tokenB,fee);
+    function setAmountOutMinimum(uint256 __amountOutMinimum) public onlyOwner {
+        _amountOutMinimum = __amountOutMinimum;
+        emit _setAmountOutMinimum(_amountOutMinimum);
     }
 
-    function CurrentPrice(address tokenA,address tokenB,uint24 fee) public view returns(uint256){
+    function setPoolFee(uint24 _poolFee) public onlyOwner {
+        poolFee = _poolFee;
+        emit _setPoolFee(poolFee);
+    }
+    
+    function getQuote_AmountReceived(uint256 amountIn, address tokenIn, address tokenOut)public returns(uint256 amountOut){
+        amountOut = IQuoter(QuoterAddress).quoteExactInputSingle(tokenIn, tokenOut, poolFee, amountIn, 0); 
+    }
+    function getQuote_AmountRequired(uint256 amountOut, address tokenIn, address tokenOut)public returns(uint256 amountIn){
+        amountIn = IQuoter(QuoterAddress).quoteExactOutputSingle(tokenIn, tokenOut, poolFee, amountOut, 0); 
+    }
+    function getPool(
+        address tokenA,
+        address tokenB,
+        uint24 fee
+    ) public view returns (address) {
+        return IUniswapV3Factory(Factory).getPool(tokenA, tokenB, fee);
+    }
 
-        address poolAddress = getPool(tokenA,tokenB,fee);
+    function CurrentPrice(
+        address tokenA,
+        address tokenB,
+        uint24 fee
+    ) public view returns (uint256) {
+        address poolAddress = getPool(tokenA, tokenB, fee);
         IUniswapV3Factory pool = IUniswapV3Factory(poolAddress);
-        (uint160 sqrtPriceX96,,,,,,) = pool.slot0();
+        (uint160 sqrtPriceX96, , , , , , ) = pool.slot0();
         uint256 sqrtPrice = sqrtPriceX96;
         uint256 price = sqrtPrice.mul(sqrtPrice).div(1 << 192);
         return price;
     }
 
-    function calculateTotalPrice(uint256 pricePerToken, uint256 numberOfZooTokens) public pure returns (uint256) {
+    function calculateTotalPrice(
+        uint256 pricePerToken,
+        uint256 numberOfZooTokens
+    ) public pure returns (uint256) {
         uint256 totalPriceIn12Decimals = pricePerToken * numberOfZooTokens;
-        uint256 totalPriceIn6Decimals = totalPriceIn12Decimals / (10**6);
+        uint256 totalPriceIn6Decimals = totalPriceIn12Decimals / (10 ** 6);
         return totalPriceIn6Decimals;
     }
 
-
-    function setRouterAddress(address _routerAddress) public onlyOwner{
-            routerAddress = _routerAddress;
-            emit _setRouterAddress(routerAddress);
-    }
-    function getRouterAddress() public view returns(address ){
-            return routerAddress;
+    
+    function getRouterAddress() public view returns (address) {
+        return RouterAddress;
     }
 
-    function setZooToken(address _Zoo) public onlyOwner{
-            Zoo = _Zoo;
-            emit _setZooToken(Zoo);
-    }
-    function getZooToken() public view returns(address){
-            return Zoo;
+    function getZooToken() public view returns (address) {
+        return Zoo;
     }
 
-    function setOtherToken(address _Other, bool _value) public onlyOwner{
-            OtherTokens[_Other] = _value;
-            emit _setOtherToken(_Other);
+    function getPoolFee() public view returns (uint256) {
+        return poolFee;
     }
 
-    function checkOtherToken(address _Other) public view onlyOwner returns(bool){
-            return OtherTokens[_Other];
+    function checkOtherToken(
+        address _Other
+    ) public view onlyOwner returns (bool) {
+        return OtherTokens[_Other];
     }
 
-    function setOwner(address _owner) public onlyOwner {
-        owner =_owner;
-        emit _setOwner(owner);
-    }
-    function getOwner() public view returns(address){
-            return owner;
+    function getAmountOutMinimum () public view returns(uint256) {
+        return _amountOutMinimum;
     }
 
-    function setUinswapAddress(address _uniswapAddress)public returns(bool){
-       require(_uniswapAddress != address(0),"0 address is not acceptable");
-       factory = _uniswapAddress;
-       return true;
+    function getOwner() public view returns (address) {
+        return owner;
     }
+
 
 }
 

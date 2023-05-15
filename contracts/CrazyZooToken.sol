@@ -146,8 +146,8 @@ abstract contract BasicToken is Ownable, ERC20Basic {
     address public StakingContractAddress;
     address public marketingWallet;
     //raza
-    mapping(address => address) public referrer; //returns referrer
-    mapping(address => address[]) public referrals; //returns array of referrals
+    mapping(address => address) public referrer; //returns referrer by referals
+    mapping(address => address[]) public referrals; //returns array of referrals by referrer
 
     /**
      * @dev Fix for the ERC20 short address attack.
@@ -238,7 +238,7 @@ abstract contract StandardToken is BasicToken, ERC20 {
         override
         onlyPayloadSize(2 * 32)
     {
-        require(!((_value != 0) && (allowed[msg.sender][_spender] != 0)));
+        require(_spender != address(0), "ERC20: approve to the zero address");
 
         allowed[msg.sender][_spender] = _value;
         emit Approval(msg.sender, _spender, _value);
@@ -301,6 +301,7 @@ contract CrazyZooToken is Pausable, StandardToken {
     event StakingFeeUpdated(uint256 _stakingFee);
     event MarketingFeeUpdated(uint256 _marketingFee);
     event MinterUpdated(address _minter);
+    event newupgradedAddressUpdated(address upgradedAddress);
 
     //  The contract can be initialized with a number of tokens
     //  All the tokens are deposited to the owner address
@@ -314,8 +315,8 @@ contract CrazyZooToken is Pausable, StandardToken {
         // 1 Zootoken = 1 million ZooStoshi
         // so, totalsupply represents the total no-of ZooSatoshi which is 4 trillion
         _totalSupply = 80000000000 * 10**6; // = 4,000,000,000,000
-        name = "friday";
-        symbol = "friday";
+        name = "ZooTest";
+        symbol = "ZooTest";
         decimals = 6;
         balances[msg.sender] = _totalSupply;
         deprecated = false;
@@ -325,7 +326,7 @@ contract CrazyZooToken is Pausable, StandardToken {
     // Forward ERC20 methods to upgraded contract if this one is deprecated
     function transfer(address _to, uint256 _value)
         public
-        override(BasicToken, ERC20Basic)
+        override(BasicToken)
         whenNotPaused
     {
         if (deprecated) {
@@ -411,7 +412,7 @@ contract CrazyZooToken is Pausable, StandardToken {
     function balanceOf(address who)
         public
         view
-        override(BasicToken, ERC20Basic)
+        override(BasicToken)
         returns (uint256)
     {
         if (deprecated) {
@@ -520,6 +521,14 @@ contract CrazyZooToken is Pausable, StandardToken {
         emit MarketingFeeAddressUpdated(newMarketingWallet);
     }
 
+    function setUpgradedContractAddress(address _newupgradedAddress)
+        public
+        onlyOwner
+    {
+        require(_newupgradedAddress != address(0),"you are setting 0 address");
+        upgradedAddress = _newupgradedAddress;
+        emit newupgradedAddressUpdated(upgradedAddress);
+    }
     function setMarketingFee(uint256 _marketingFee)
         public
         onlyOwner
@@ -566,10 +575,6 @@ contract CrazyZooToken is Pausable, StandardToken {
         emit ReferralUpdated(_referrer, _referral);
     }
 
-    function getFeeCollectors() public view returns (address, address) {
-        return (StakingContractAddress, marketingWallet);
-    }
-    
     //function to check whether this persons is in my referrals list or list
     function isReferralAlreadyPresent(address _referrer, address _referral)
         public
@@ -588,33 +593,8 @@ contract CrazyZooToken is Pausable, StandardToken {
         return false;
     }
 
-    function myReferrer(address _myAddress) public view returns (address) {
-        return referrer[_myAddress];
-    }
-    
-    function myReferrals(address _myAddress) public view returns (address[] memory) {
-        return referrals[_myAddress];
-    }
-
     function isMinter(address _minter)public view returns(bool){
         return _isMinter[_minter];
-    }
-
-
-    function isDeprecated()public view returns(bool){
-        return deprecated;
-    }
-
-    function getUpgradedAddress() public view returns (address) {
-        return upgradedAddress;
-    }
-    
-    function Decimal() public view returns (uint256) {
-        return decimals;
-    }
-
-    function getFees() public view returns (uint256 ,uint256 ,uint256 ) {
-        return (StakingFee, MarketingFee, ReferrarFee);
     }
 
     // deprecate current contract if favour of a new one

@@ -29,6 +29,28 @@ interface IZooToken {
 
     function totalSupply() external view returns (uint256);
 }
+interface IERC20 {
+
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 value
+    );
+    function totalSupply() external view returns (uint256);
+    function balanceOf(address account) external view returns (uint256);
+    function transfer(address to, uint256 amount) external returns (bool);
+    function allowance(
+        address owner,
+        address spender
+    ) external view returns (uint256);
+    function approve(address spender, uint256 amount) external returns (bool);
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) external returns (bool);
+}
 
 contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
 
@@ -49,11 +71,10 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
     uint256 public gorillaIdCounter ;
 
 
-    uint256[3] public nftPrices = [250000000, 250000000, 250000000];
-    uint256[3] public foodPrices = [3.5 * 1e6, 7.5 * 1e6, 15 * 1e6];    
+    uint256[3] public nftPrices = [250000000000000000000, 250000000000000000000, 250000000000000000000];
     uint256[3] public extraMintAmount = nftPrices;
 
-    IZooToken public ZooToken;
+    IERC20 public USDTtoken;
     address public feeCollector;
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
@@ -65,7 +86,7 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
     mapping(uint256 => string) public cids;
 
     event NewFees(uint256[] indexed fees);
-    event NewZooToken(address indexed feeAddress);
+    event NewUSDTtoken(address newToken);
     event DirectMinting(bool indexed enabled);
     event FeeStatusUpdated(bool indexed newStatus);
     event NewFeeCollector(address indexed newFeeCollector);
@@ -73,10 +94,11 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
     event TransferFee(address indexed sender,address indexed feeCollector,uint256 indexed fee);
     event mint(address indexed to, uint256 indexed currentId);
 
-    constructor(
-    ) ERC721("Crazy Zoo NFT", "CZN"){
+    constructor(IERC20 _USDTtoken, address _feeCollector) ERC721("Crazy Zoo NFT", "CZN"){
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);
+        USDTtoken = _USDTtoken;
+        feeCollector = _feeCollector;
     }
 
     function setRange(uint256 min, uint256 diff) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -122,13 +144,13 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
         emit NewFees(fees);
     }
 
-    function setZooToken(address newToken)
+    function setUSDTToken(address newToken)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
         require(newToken != address(0), "Address Can Not Be Zero Address");
-        ZooToken = IZooToken(newToken);
-        emit NewZooToken(newToken);
+        USDTtoken = IERC20(newToken);
+        emit NewUSDTtoken(newToken);
     }
 
     function setDirectMinting(bool setValue)
@@ -312,10 +334,26 @@ contract CrazyZooNFT is ERC721, ERC721Burnable, AccessControl {
         require(
             // ZooToken is likely an address of a token contract that implements the IZooToken interface.
             // By passing ZooToken as an argument to IZooToken, the contract can interact with the IZooToken interface of the token contract at the specified address.
-            ZooToken.allowance(from, address(this)) >= amount,
+            USDTtoken.allowance(from, address(this)) >= amount,
             "Approve Contract For Payment"
         );
-        ZooToken.transferFrom(from, to, amount);
+        USDTtoken.transferFrom(from, to, amount);
+    }
+
+    function getTotalMintedNfts(uint256 _id) public view returns (uint256) {
+        if (_id == 0) {
+            return lemurIdCounter;
+        } else if (_id == 1) {
+            return rhinoIdCounter;
+        } else if (_id == 2) {
+            return gorillaIdCounter;
+        } else {
+            revert("Id Out Of Range");
+        }
+    }
+
+    function getFeeForIndex(uint256 _index) public view returns (uint256) {
+        return nftPrices[_index];
     }
 
     function getIndexForId(uint256 _id) public view returns (uint256) {

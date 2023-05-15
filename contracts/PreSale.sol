@@ -155,6 +155,8 @@ contract PreSale is Pausable {
 
     uint256 public minInvestment;
 
+    uint256 public maxInvestment;
+
     uint256 public rate;
 
     uint256 public reffererFee;
@@ -165,16 +167,20 @@ contract PreSale is Pausable {
 
     uint256 public endTime;
 
+    mapping(address => uint256) public userBalance;
+
     event _startPreSale(
         address collectorWallet,
         uint256 cap,
         uint256 rate,
         uint256 minInvestment,
+        uint256 maxInvestment,
         uint256 reffererFee,
         uint256 startTime,
         uint256 endTime
     );
     event _changeMinInvestment(uint256 minInvestment);
+    event _changeMaxInvestment(uint256 maxInvestment);
     event _changeCap(uint256 cap);
     event _changeReffererFee(uint256 reffererFee);
     event _buyZooTokens(
@@ -194,6 +200,7 @@ contract PreSale is Pausable {
         uint256 _cap,
         uint256 _rate,
         uint256 _minInvestment,
+        uint256 _maxInvestment,
         uint256 _reffererFee,
         uint256 _endTime,
         IZooToken _ZooToken,
@@ -207,12 +214,17 @@ contract PreSale is Pausable {
             _minInvestment >= _rate,
             "minimum investment should be greater than or equal to rate of token"
         );
+        require(
+            _minInvestment < _maxInvestment,
+            "maximum investment should be greater than or equal to rate of token"
+        );
         require(_reffererFee > 0);
         require(_endTime > block.timestamp, "endtime is incorrect");
 
         collectorWallet = _collectorWallet;
         rate = _rate;
         minInvestment = _minInvestment; //minimum investment in wei  (=10 ether)
+        maxInvestment = _maxInvestment;
         cap = _cap; //cap in tokens base units (=295257 tokens)
         reffererFee = _reffererFee;
         startTime = block.timestamp;
@@ -225,6 +237,7 @@ contract PreSale is Pausable {
             cap,
             rate,
             minInvestment,
+            maxInvestment,
             reffererFee,
             startTime,
             endTime
@@ -242,17 +255,23 @@ contract PreSale is Pausable {
         //checking address and minimum investment
         require(beneficiary != address(0));
         require(_inputAmount >= minInvestment);
-        require(block.timestamp < endTime);
+        require(block.timestamp < endTime,"sale has ended");
 
         //checking cap
         uint256 tokens = ((_inputAmount * ZooTokenDecimal) / rate);
         require(tokens + mintedTokens <= cap,"you are exceeding the cap");
+
+        // checking maximum
+        require(userBalance[beneficiary] <= maxInvestment, "you have purchased maximum tokens");
         
         UsdtToken.transferFrom(beneficiary, address(this), _inputAmount);
 
         // update USDTRaised
         USDTRaised = USDTRaised.add(_inputAmount);
         mintedTokens += tokens;
+
+        //updating user balance
+        userBalance[beneficiary] += _inputAmount ;
 
         //tokens for referrer
         uint256 reffererTokens;
@@ -271,7 +290,7 @@ contract PreSale is Pausable {
 
         emit _buyZooTokens(msg.sender, beneficiary, _inputAmount, investorsTokens,tokens,reffererTokens);
     }
-
+     
     function changeReffererFee(uint256 fee) public onlyOwner {
         require(fee > 0);
         reffererFee = fee;
@@ -292,6 +311,12 @@ contract PreSale is Pausable {
         emit _changeMinInvestment(minInvestment);
     }
 
+    function changeMaxInvestment(uint256 _maxInvestment) public onlyOwner {
+        require(_maxInvestment > minInvestment);
+
+        maxInvestment = _maxInvestment;
+        emit _changeMaxInvestment(maxInvestment);
+    }
     function changeCollectorWallet(address _CollectorWallet) public onlyOwner {
         require(_CollectorWallet != address(0));
         collectorWallet = _CollectorWallet;
@@ -302,4 +327,28 @@ contract PreSale is Pausable {
         bool capReached = (mintedTokens >= cap) || block.timestamp > endTime;
         return capReached;
     }
+
+    function getEndTime() public view returns (uint256) {
+        return endTime;
+    }
+
+    function getTotalMinted() public view returns (uint256) {
+        return mintedTokens;
+    }
+    function getPriceOfToken() public view returns (uint256) {
+        return rate;
+    }
+    function getMinInvestment() public view returns (uint256) {
+        return minInvestment;
+    }
+    function getMaxInvestment() public view returns (uint256) {
+        return maxInvestment;
+    }
+    function getUserBalance(address user) public view returns (uint256) {
+        return userBalance[user];
+    }
+    function getCap() public view returns (uint256) {
+        return cap;
+    }
+
 }

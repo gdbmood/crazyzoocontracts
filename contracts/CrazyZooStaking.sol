@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.7.0 <0.9.0;
 
-// import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 interface INftCollection is IERC721 {
@@ -104,6 +103,11 @@ interface ISingleSwap {
     function SellingUSDCToken(
         uint256 amountIn
     ) external returns (uint256 amountOut);
+
+    function TokenSwapBYPressure(
+        uint256 amountIn,
+        address OtherToken
+    ) external returns (uint256);
 }
 
 interface IZooToken {
@@ -129,6 +133,7 @@ contract CrazyZooStaking {
     address public _USDCToken;
 
     INftCollection public nftCollection;
+    address public _swap;
     ISingleSwap public swap;
     IZooToken public ZooToken;
     IERC20USDC public USDCToken;
@@ -162,7 +167,11 @@ contract CrazyZooStaking {
     mapping(uint256 => bool) public stakedBefore;
 
     // food price
-    uint256[3] public foodPrices = [3500000000000000000, 7500000000000000000, 1500000000000000000];
+    uint256[3] public foodPrices = [
+        3500000000000000000,
+        7500000000000000000,
+        1500000000000000000
+    ];
 
     //rewards
     // 0 for Lemur, 1 for Rhino, 2 for Gorilla
@@ -172,10 +181,20 @@ contract CrazyZooStaking {
     uint256[3] public rewardDays = [500 days, 500 days, 500 days];
 
     address public owner;
+    address public feeCollector;
     uint256 public ZooTokenDecimal = 1000000;
     uint256 public whalesWithdrawalExtraFee = 2500000;
 
     bool private locked;
+
+    event Withdrawn(uint256[] indexed _tokenIds, address _to);
+    event NewRewardsPerDay(uint256 _nftIndex, uint256 _newValue);
+    event _feedYourAnimal(uint256 _tokenId);
+    event _nftStaked(bool);
+    event _claimRewards(uint256 rewards);
+    event _reinvestRewards(uint256 rewards);
+    event _foodPrices(uint256[] fees);
+
     modifier nonReentrant() {
         require(!locked, "Reentrant call detected!");
         locked = true;
@@ -190,30 +209,34 @@ contract CrazyZooStaking {
     constructor(
         INftCollection _nftCollection,
         address __USDCToken,
-        ISingleSwap _SingleSwap,
+        address _SingleSwap,
         IZooToken _ZooToken,
-        address _owner
+        address _feeCollector
     ) {
         nftCollection = _nftCollection;
         _USDCToken = __USDCToken;
         USDCToken = IERC20USDC(__USDCToken);
-        swap = _SingleSwap;
-        owner = _owner;
+        _swap = _SingleSwap;
+        swap = ISingleSwap(_SingleSwap);
         ZooToken = _ZooToken;
+        owner = msg.sender;
+        feeCollector = _feeCollector;
     }
 
-    event Withdrawn(uint256[] indexed _tokenIds, address _to);
-    event NewRewardsPerDay(uint256 _nftIndex, uint256 _newValue);
+
 
     // // TokenId parameter in the feedYourAnimal function is used to specify the ID of the NFT that the user wants to feed
-    function feedYourAnimal(uint256 _tokenId) public  {
+    function feedYourAnimal(uint256 _tokenId) public {
         // returns the index of the NFT based on the _tokenId parameter.
         uint256 nftIndex = nftCollection.getIndexForId(_tokenId);
         // fetches the price of food for the NFT at the given nftIndex.
         uint256 foodPrice = foodPrices[nftIndex - 1];
 
         // checks if the contract has been approved to spend the required amount of feeToken tokens by the caller
-        require( USDCToken.allowance(msg.sender, address(this)) >= foodPrice, "Approve Staking Contract");
+        require(
+            USDCToken.allowance(msg.sender, address(this)) >= foodPrice,
+            "Approve Staking Contract"
+        );
 
         // transfers the foodPrice amount of feeToken tokens from the caller to the contract.
         USDCToken.transferFrom(msg.sender, address(this), foodPrice);
@@ -242,8 +265,8 @@ contract CrazyZooStaking {
             }
         }
 
+        emit _feedYourAnimal(_tokenId);
     }
-
 
     function calculateRewards(address staker_) public view returns (uint256) {
         Staker memory staker = stakers[staker_];
@@ -331,13 +354,20 @@ contract CrazyZooStaking {
 
             nftCollection.transferFrom(msg.sender, address(this), _tokenIds[i]);
 
+            USDCToken.transferFrom(
+                feeCollector,
+                address(this),
+                nftCollection.getFeeForId(index) 
+            );
             //here we will swap zootoken from 250 usdc
             USDCToken.approve(
-                _USDCToken,
-                nftCollection.getFeeForId(index - 1) * 1e18
+                _swap,
+                nftCollection.getFeeForId(index) 
             );
-            uint256 zoo_tokens = swap.SellingUSDCToken(
-                nftCollection.getFeeForId(index - 1) * 1e18
+
+            uint256 usdt_tokens = swap.TokenSwapBYPressure(
+                nftCollection.getFeeForId(index),
+                _USDCToken
             );
 
             stakerAddress[_tokenIds[i]] = msg.sender;
@@ -347,7 +377,7 @@ contract CrazyZooStaking {
             _stakedNft.lastTimeFed = block.timestamp;
             _stakedNft.timeStaked = block.timestamp;
             stakedNfts[msg.sender].push(_stakedNft);
-            stakers[msg.sender].fundsDeposited += zoo_tokens;
+            stakers[msg.sender].fundsDeposited += usdt_tokens;
             stakedBefore[_tokenIds[i]] = true;
         }
 
@@ -356,7 +386,10 @@ contract CrazyZooStaking {
 
         // setting the current time
         stakers[msg.sender].timeOfLastUpdate = block.timestamp;
+
+        emit _nftStaked(true);
     }
+    
 
     function claimRewards() external {
         uint256 rewards = calculateRewards(msg.sender) +
@@ -367,6 +400,7 @@ contract CrazyZooStaking {
         stakers[msg.sender].timeOfLastUpdate = block.timestamp;
         stakers[msg.sender].unclaimedRewards = 0;
         ZooToken.transfer(msg.sender, rewards);
+        emit _claimRewards(rewards);
     }
 
     function reinvestRewards() external {
@@ -378,10 +412,15 @@ contract CrazyZooStaking {
         stakers[msg.sender].timeOfLastUpdate = block.timestamp;
         stakers[msg.sender].unclaimedRewards = 0;
         //here instead of calling this function we will call swap function
-        ZooToken.transfer(msg.sender, rewards);
+        uint256 usdt_tokens = swap.SellingUSDCToken(rewards);
+        USDCToken.transfer(msg.sender, usdt_tokens);
+        emit _reinvestRewards(rewards);
     }
 
-    function getWhaleFee(uint256 _withdrawAmount,uint256 _depositAmount) public view returns (uint256) {
+    function getWhaleFee(
+        uint256 _withdrawAmount,
+        uint256 _depositAmount
+    ) public view returns (uint256) {
         uint256 StakingContractBalance = ZooToken.balanceOf(address(this));
         if (
             _depositAmount <
@@ -461,7 +500,7 @@ contract CrazyZooStaking {
         uint256 userFunds = __staker.fundsDeposited;
 
         // Check if whale txn and deduce tax accordingly
-        uint256 whaleFee = getWhaleFee(rewards,userFunds);
+        uint256 whaleFee = getWhaleFee(rewards, userFunds);
         uint256 len = _tokenIds.length;
         __staker.unclaimedRewards += rewards - (whaleFee * len);
 
@@ -502,6 +541,10 @@ contract CrazyZooStaking {
         nftCollection = INftCollection(nftAddress);
     }
 
+    function setFeeCollectorAddress(address _feeCollector) public onlyOwner {
+        require(_feeCollector != address(0), "address is undefined");
+        feeCollector = _feeCollector;
+    }
     function setZooAddress(address ZooAddress) public onlyOwner {
         require(ZooAddress != address(0), "address is undefined");
         ZooToken = IZooToken(ZooAddress);
@@ -516,29 +559,24 @@ contract CrazyZooStaking {
         require(fees > 0, "value is undefined");
         whalesWithdrawalExtraFee = fees;
     }
+    
+    function setFees(
+        uint256[] calldata fees
+    ) external onlyOwner {
 
-    function getSwapAddress() public view returns (ISingleSwap) {
-        return swap;
-    }
+        uint256 len = foodPrices.length;
 
-    function getUsdcAddress() public view returns (address) {
-        return _USDCToken;
-    }
+        //  The loop iterates over the array of _tokenIds
+        for (uint256 i; i < len; ++i) {
 
-    function getNFTAddress() public view returns (INftCollection) {
-        return nftCollection;
-    }
+        require(
+            fees[i] != 0 ,
+            "Fee Can Not Be Zero"
+        );
+            foodPrices[i] = fees[i];
+        }
 
-    function getZooAddress() public view returns (IZooToken) {
-        return ZooToken;
-    }
-
-    function getZooTokenDecimal() public view returns (uint256) {
-        return ZooTokenDecimal;
-    }
-
-    function getwhalesWithdrawalExtraFee() public view returns (uint256) {
-        return whalesWithdrawalExtraFee;
+        emit _foodPrices(fees);
     }
 
     function setRewardsPerDay(
@@ -583,14 +621,6 @@ contract CrazyZooStaking {
         // emit NewRewardDays(_nftIndex, _newDays);
     }
 
-    function getRewardDays()
-        public
-        view
-        returns (uint256, uint256, uint256)
-    {
-        return (rewardDays[0], rewardDays[0], rewardDays[0]);
-    }
-
     function userStakeInfo(
         address _user
     ) public view returns (uint256 _tokensStaked, uint256 _availableRewards) {
@@ -622,4 +652,3 @@ contract CrazyZooStaking {
         return _isHungry;
     }
 }
-// address public constant USDC_address = 0x0FA8781a83E46826621b3BC094Ea2A0212e71B23;
