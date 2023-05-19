@@ -3,9 +3,49 @@ const { toWei } = require('web3-utils');
 
 describe("PreSale contract", function () {
 
+  const addressZero = '0x0000000000000000000000000000000000000000'
 
+  it("test final purchase", async function () {
+    const [owner, liquidityWallet, teamWallet, marketingWallet, beneficiary, refferer] = await ethers.getSigners();
+
+    const PresaleContract = await ethers.getContractFactory("PreSale");
+    const Token = await ethers.getContractFactory("CrazyZooToken");
+    const _usdc = await ethers.getContractFactory("MYUSDC");
+
+    const ZooToken = await Token.deploy({gasLimit:6721975});
+    const USDT = await _usdc.deploy({gasLimit:6721975});
+    const PreSale = await PresaleContract.deploy({gasLimit:6721975});
+
+    await PreSale.startPreSale(
+      liquidityWallet.address,
+      teamWallet.address,
+      marketingWallet.address,
+      100000000,
+      toWei('10', 'ether'),
+      toWei('10', 'ether'),
+      toWei('1000000', 'ether'),
+      15000000,
+      1687817973,
+      ZooToken.address,
+      USDT.address,
+      {gasLimit:6721975}
+    )
+
+    const events = await PreSale.queryFilter("_startPreSale");
+
+    // await ZooToken.SetReferral(refferer.address,beneficiary.address, {gasLimit:6721975});
+    await ZooToken.setMinter(PreSale.address, {gasLimit:6721975});
+    await USDT.connect(owner).transfer(beneficiary.address,toWei('10', 'ether'), {gasLimit:6721975});
+    await USDT.connect(beneficiary).approve(PreSale.address,toWei('10', 'ether'), {gasLimit:6721975});
+    
+    await PreSale.connect(beneficiary).buyZooTokens(beneficiary.address, refferer.address, '10000000000000000000', {gasLimit:6721975});
+    
+    
+  });
+
+  
   it("startPreSale should start the PreSale and set the values", async function () {
-    const [owner, collectorWallet] = await ethers.getSigners();
+    const [owner, liquidityWallet, teamWallet, marketingWallet] = await ethers.getSigners();
 
     const PresaleContract = await ethers.getContractFactory("PreSale");
     const Token = await ethers.getContractFactory("CrazyZooToken");
@@ -16,10 +56,13 @@ describe("PreSale contract", function () {
     const PreSale = await PresaleContract.deploy();
 
     await PreSale.startPreSale(
-      collectorWallet.address,
+      liquidityWallet.address,
+      teamWallet.address,
+      marketingWallet.address,
       100000000,
       toWei('10', 'ether'),
       toWei('10', 'ether'),
+      toWei('1000000', 'ether'),
       15000000,
       1687817973,
       ZooToken.address,
@@ -28,7 +71,9 @@ describe("PreSale contract", function () {
 
     const events = await PreSale.queryFilter("_startPreSale");
     // Check that there is one emitted event
-    expect(events[0].args.collectorWallet).to.equal(collectorWallet.address);
+    expect(events[0].args.liquidityWallet).to.equal(liquidityWallet.address);
+    expect(events[0].args.teamWallet).to.equal(teamWallet.address);
+    expect(events[0].args.marketingWallet).to.equal(marketingWallet.address);
     expect(events[0].args.cap).to.equal(100000000);
     expect(events[0].args.rate).to.equal(toWei('10', 'ether'));
     expect(events[0].args.minInvestment).to.equal(toWei('10', 'ether'));
@@ -39,99 +84,114 @@ describe("PreSale contract", function () {
 
 
   it("startPreSale should be reverted for _collectorWallet != address(0)", async function () {
-    const [owner, _collectorWallet] = await ethers.getSigners();
+    const [owner, liquidityWallet, teamWallet, marketingWallet] = await ethers.getSigners();
 
     const PresaleContract = await ethers.getContractFactory("PreSale");
     const Token = await ethers.getContractFactory("CrazyZooToken");
     const _usdc = await ethers.getContractFactory("MYUSDC");
 
-    const ZooToken = await Token.deploy();
-    const USDT = await _usdc.deploy();
-    const Presale = await PresaleContract.deploy();
+    const ZooToken = await Token.deploy({gasLimit:30000000});
+    const USDT = await _usdc.deploy({gasLimit:30000000});
+    const Presale = await PresaleContract.deploy({gasLimit:30000000});
 
     await expect(
       Presale.startPreSale(
         '0x0000000000000000000000000000000000000000',
+        teamWallet.address,
+        marketingWallet.address,
         100000000,
         toWei('10', 'ether'),
         toWei('10', 'ether'),
+        toWei('1000000', 'ether'),
         15000000,
         1687817973,
         ZooToken.address,
-        USDT.address
+        USDT.address,
+        {gasLimit:30000000}
       )
     ).to.be.reverted;
 
   });
 
   it("startPreSale should be reverted for _rate > 0", async function () {
-    const [owner, collectorWallet] = await ethers.getSigners();
+    const [owner, liquidityWallet, teamWallet, marketingWallet] = await ethers.getSigners();
 
     const PresaleContract = await ethers.getContractFactory("PreSale");
     const Token = await ethers.getContractFactory("CrazyZooToken");
     const _usdc = await ethers.getContractFactory("MYUSDC");
 
-    const ZooToken = await Token.deploy();
-    const USDT = await _usdc.deploy();
-    const Presale = await PresaleContract.deploy();
+    const ZooToken = await Token.deploy({gasLimit:30000000});
+    const USDT = await _usdc.deploy({gasLimit:30000000});
+    const Presale = await PresaleContract.deploy({gasLimit:30000000});
 
     await expect(
       Presale.startPreSale(
-        collectorWallet.address,
+        liquidityWallet.address,
+        teamWallet.address,
+        marketingWallet.address,
         100000000,
         0,
         toWei('10', 'ether'),
+        toWei('10000000', 'ether'),
         15000000,
         1687817973,
         ZooToken.address,
-        USDT.address
+        USDT.address,
+        {gasLimit:30000000}
       )
     ).to.be.reverted;
 
   });
 
   it("startPreSale should be reverted for _minInvestment >= _rate", async function () {
-    const [owner, collectorWallet] = await ethers.getSigners();
+    const [owner, liquidityWallet, teamWallet, marketingWallet] = await ethers.getSigners();
 
     const PresaleContract = await ethers.getContractFactory("PreSale");
     const Token = await ethers.getContractFactory("CrazyZooToken");
     const _usdc = await ethers.getContractFactory("MYUSDC");
 
-    const ZooToken = await Token.deploy();
-    const USDT = await _usdc.deploy();
-    const Presale = await PresaleContract.deploy();
+    const ZooToken = await Token.deploy({gasLimit:30000000});
+    const USDT = await _usdc.deploy({gasLimit:30000000});
+    const Presale = await PresaleContract.deploy({gasLimit:30000000});
 
     await expect(
       Presale.startPreSale(
-        collectorWallet.address,
+        liquidityWallet.address,
+        teamWallet.address,
+        marketingWallet.address,
         100000000,
-        toWei('10', 'ether'),
-        toWei('9', 'ether'),
+        toWei('10', 'ether'),//rate
+        toWei('9', 'ether'),//min amount
+        toWei('1000000', 'ether'),//max amount
         15000000,
         1687817973,
         ZooToken.address,
-        USDT.address
+        USDT.address,
+        {gasLimit:30000000}
       )
     ).to.be.reverted;
 
   });
 
   it("changeCollectorWallet should set the CollectorWallet when it is not zero address", async function () {
-    const [owner, collectorWallet] = await ethers.getSigners();
+    const [owner, user1, user2, liquidityWallet, teamWallet, marketingWallet] = await ethers.getSigners();
 
     const PresaleContract = await ethers.getContractFactory("PreSale");
     const Token = await ethers.getContractFactory("CrazyZooToken");
     const _usdc = await ethers.getContractFactory("MYUSDC");
 
-    const ZooToken = await Token.deploy();
-    const USDT = await _usdc.deploy();
-    const PreSale = await PresaleContract.deploy();
+    const ZooToken = await Token.deploy({gasLimit:30000000});
+    const USDT = await _usdc.deploy({gasLimit:30000000});
+    const PreSale = await PresaleContract.deploy({gasLimit:30000000});
 
     await PreSale.startPreSale(
-      collectorWallet.address,
+      liquidityWallet.address,
+      teamWallet.address,
+      marketingWallet.address,
       100000000,
-      toWei('10', 'ether'),
-      toWei('10', 'ether'),
+      toWei('10', 'ether'),//rate
+      toWei('10', 'ether'),//min amount
+      toWei('1000000', 'ether'),//max amount
       15000000,
       1687817973,
       ZooToken.address,
@@ -141,53 +201,81 @@ describe("PreSale contract", function () {
     const events = await PreSale.queryFilter("_startPreSale");
 
     // Check that there is one emitted event
-    expect(events[0].args.collectorWallet).to.equal(collectorWallet.address);
+    expect(events[0].args.liquidityWallet).to.equal(liquidityWallet.address);
+    expect(events[0].args.teamWallet).to.equal(teamWallet.address);
+    expect(events[0].args.marketingWallet).to.equal(marketingWallet.address);
     expect(events[0].args.cap).to.equal(100000000);
     expect(events[0].args.rate).to.equal(toWei('10', 'ether'));
     expect(events[0].args.minInvestment).to.equal(toWei('10', 'ether'));
     expect(events[0].args.reffererFee).to.equal(15000000);
     expect(events[0].args.endTime).to.equal(1687817973);
 
-    await PreSale.changeCollectorWallet(owner.address);
+    await PreSale.changeLiquidityWallet(owner.address);
+    await PreSale.changeTeamWallet(user1.address);
+    await PreSale.changeMarketingWallet(user2.address);
 
-    const event = await PreSale.queryFilter("_changeCollectorWallet");
+    const event = await PreSale.queryFilter("_changeLiquidityWallet");
+    const event1 = await PreSale.queryFilter("_changeTeamWallet");
+    const event2 = await PreSale.queryFilter("_changeMarketingWallet");
 
-    expect(event[0].args.collectorWallet).to.equal(owner.address);
+    expect(event[0].args.liquidityWallet).to.equal(owner.address);
+    expect(event1[0].args.teamWallet).to.equal(user1.address);
+    expect(event2[0].args.marketingWallet).to.equal(user2.address);
+
+    //test changing share percent
+    expect(Number(await PreSale.liquiditySharePercent())).to.be.equal(60);
+    expect(Number(await PreSale.teamSharePercent())).to.be.equal(10);
+    expect(Number(await PreSale.marketingSharePercent())).to.be.equal(30);
+    
+    await PreSale.changeWalletsShare(
+      '50', //liquidity
+      '30', //team
+      '20', //marketing
+    );
+    expect(Number(await PreSale.liquiditySharePercent())).to.be.equal(50);
+    expect(Number(await PreSale.teamSharePercent())).to.be.equal(30);
+    expect(Number(await PreSale.marketingSharePercent())).to.be.equal(20);
   });
 
   it("changeReffererFee should set the ReffererFee when it is not zero", async function () {
-    const [owner, collectorWallet] = await ethers.getSigners();
+    const [owner, liquidityWallet, teamWallet, marketingWallet] = await ethers.getSigners();
 
     const PresaleContract = await ethers.getContractFactory("PreSale");
     const Token = await ethers.getContractFactory("CrazyZooToken");
     const _usdc = await ethers.getContractFactory("MYUSDC");
 
-    const ZooToken = await Token.deploy();
-    const USDT = await _usdc.deploy();
-    const PreSale = await PresaleContract.deploy();
+    const ZooToken = await Token.deploy({gasLimit:30000000});
+    const USDT = await _usdc.deploy({gasLimit:30000000});
+    const PreSale = await PresaleContract.deploy({gasLimit:30000000});
 
     await PreSale.startPreSale(
-      collectorWallet.address,
+      liquidityWallet.address,
+      teamWallet.address,
+      marketingWallet.address,
       100000000,
-      toWei('10', 'ether'),
-      toWei('10', 'ether'),
+      toWei('10', 'ether'),//rate
+      toWei('10', 'ether'),//min amount
+      toWei('1000000', 'ether'),//max amount
       15000000,
       1687817973,
       ZooToken.address,
-      USDT.address
+      USDT.address,
+      {gasLimit:30000000}
     )
 
     const events = await PreSale.queryFilter("_startPreSale");
 
     // Check that there is one emitted event
-    expect(events[0].args.collectorWallet).to.equal(collectorWallet.address);
+    expect(events[0].args.liquidityWallet).to.equal(liquidityWallet.address);
+    expect(events[0].args.teamWallet).to.equal(teamWallet.address);
+    expect(events[0].args.marketingWallet).to.equal(marketingWallet.address);
     expect(events[0].args.cap).to.equal(100000000);
     expect(events[0].args.rate).to.equal(toWei('10', 'ether'));
     expect(events[0].args.minInvestment).to.equal(toWei('10', 'ether'));
     expect(events[0].args.reffererFee).to.equal(15000000);
     expect(events[0].args.endTime).to.equal(1687817973);
 
-    await PreSale.changeReffererFee(20000000);
+    await PreSale.changeReffererFee(20000000, {gasLimit:30000000});
 
     const event = await PreSale.queryFilter("_changeReffererFee");
 
@@ -199,7 +287,7 @@ describe("PreSale contract", function () {
 
   
   it("changeCap should the set cap value when it is not zero and greater the the mintedTokens", async function () {
-    const [owner, collectorWallet] = await ethers.getSigners();
+    const [owner, liquidityWallet, teamWallet, marketingWallet] = await ethers.getSigners();
 
     const PresaleContract = await ethers.getContractFactory("PreSale");
     const Token = await ethers.getContractFactory("CrazyZooToken");
@@ -210,10 +298,13 @@ describe("PreSale contract", function () {
     const PreSale = await PresaleContract.deploy();
 
     await PreSale.startPreSale(
-      collectorWallet.address,
+      liquidityWallet.address,
+      teamWallet.address,
+      marketingWallet.address,
       100000000,
-      toWei('10', 'ether'),
-      toWei('10', 'ether'),
+      toWei('10', 'ether'),//rate
+      toWei('10', 'ether'),//min amount
+      toWei('1000000', 'ether'),//max amount
       15000000,
       1687817973,
       ZooToken.address,
@@ -223,7 +314,9 @@ describe("PreSale contract", function () {
     const events = await PreSale.queryFilter("_startPreSale");
     // console.log(events[0].args.cap)
     // Check that there is one emitted event
-    expect(events[0].args.collectorWallet).to.equal(collectorWallet.address);
+    expect(events[0].args.liquidityWallet).to.equal(liquidityWallet.address);
+    expect(events[0].args.teamWallet).to.equal(teamWallet.address);
+    expect(events[0].args.marketingWallet).to.equal(marketingWallet.address);
     expect(events[0].args.cap).to.equal(100000000);
     expect(events[0].args.rate).to.equal(toWei('10', 'ether'));
     expect(events[0].args.minInvestment).to.equal(toWei('10', 'ether'));
@@ -240,7 +333,7 @@ describe("PreSale contract", function () {
   });
 
   it("changeMinInvestment should set the minInvestment when it is greater then or equal to rate", async function () {
-    const [owner, collectorWallet] = await ethers.getSigners();
+    const [owner, liquidityWallet, teamWallet, marketingWallet] = await ethers.getSigners();
 
     const PresaleContract = await ethers.getContractFactory("PreSale");
     const Token = await ethers.getContractFactory("CrazyZooToken");
@@ -251,10 +344,13 @@ describe("PreSale contract", function () {
     const PreSale = await PresaleContract.deploy();
 
     await PreSale.startPreSale(
-      collectorWallet.address,
+      liquidityWallet.address,
+      teamWallet.address,
+      marketingWallet.address,
       100000000,
       toWei('10', 'ether'),
       toWei('10', 'ether'),
+      toWei('1000000', 'ether'),
       15000000,
       1687817973,
       ZooToken.address,
@@ -264,7 +360,9 @@ describe("PreSale contract", function () {
     const events = await PreSale.queryFilter("_startPreSale");
     // console.log(events[0].args.cap)
     // Check that there is one emitted event
-    expect(events[0].args.collectorWallet).to.equal(collectorWallet.address);
+    expect(events[0].args.liquidityWallet).to.equal(liquidityWallet.address);
+    expect(events[0].args.teamWallet).to.equal(teamWallet.address);
+    expect(events[0].args.marketingWallet).to.equal(marketingWallet.address);
     expect(events[0].args.cap).to.equal(100000000);
     expect(events[0].args.rate).to.equal(toWei('10', 'ether'));
     expect(events[0].args.minInvestment).to.equal(toWei('10', 'ether'));
@@ -281,7 +379,7 @@ describe("PreSale contract", function () {
   });
 
   it("changeMinInvestment should revert the transaction when it is less than rate", async function () {
-    const [owner, collectorWallet] = await ethers.getSigners();
+    const [owner, liquidityWallet, teamWallet, marketingWallet] = await ethers.getSigners();
 
     const PresaleContract = await ethers.getContractFactory("PreSale");
     const Token = await ethers.getContractFactory("CrazyZooToken");
@@ -292,10 +390,13 @@ describe("PreSale contract", function () {
     const PreSale = await PresaleContract.deploy();
 
     await PreSale.startPreSale(
-      collectorWallet.address,
+      liquidityWallet.address,
+      teamWallet.address,
+      marketingWallet.address,
       100000000,
       toWei('10', 'ether'),
       toWei('10', 'ether'),
+      toWei('1000000', 'ether'),
       15000000,
       1687817973,
       ZooToken.address,
@@ -305,7 +406,9 @@ describe("PreSale contract", function () {
     const events = await PreSale.queryFilter("_startPreSale");
     // console.log(events[0].args.cap)
     // Check that there is one emitted event
-    expect(events[0].args.collectorWallet).to.equal(collectorWallet.address);
+    expect(events[0].args.liquidityWallet).to.equal(liquidityWallet.address);
+    expect(events[0].args.teamWallet).to.equal(teamWallet.address);
+    expect(events[0].args.marketingWallet).to.equal(marketingWallet.address);
     expect(events[0].args.cap).to.equal(100000000);
     expect(events[0].args.rate).to.equal(toWei('10', 'ether'));
     expect(events[0].args.minInvestment).to.equal(toWei('10', 'ether'));
@@ -320,7 +423,7 @@ describe("PreSale contract", function () {
   });
 
   it("buyZooTokens should not apply the reffere fee and mint the tokens only to beneficiary", async function () {
-    const [owner, collectorWallet, beneficiary] = await ethers.getSigners();
+    const [owner, liquidityWallet, marketingWallet, teamWallet, beneficiary, refferer] = await ethers.getSigners();
 
     const PresaleContract = await ethers.getContractFactory("PreSale");
     const Token = await ethers.getContractFactory("CrazyZooToken");
@@ -331,10 +434,13 @@ describe("PreSale contract", function () {
     const PreSale = await PresaleContract.deploy();
 
     await PreSale.startPreSale(
-      collectorWallet.address,
+      liquidityWallet.address,
+      teamWallet.address,
+      marketingWallet.address,
       100000000,
       toWei('10', 'ether'),
       toWei('10', 'ether'),
+      toWei('1000000', 'ether'),
       15000000,
       1687817973,
       ZooToken.address,
@@ -344,7 +450,9 @@ describe("PreSale contract", function () {
     const events = await PreSale.queryFilter("_startPreSale");
 
     // Check that there is one emitted event
-    expect(events[0].args.collectorWallet).to.equal(collectorWallet.address);
+    expect(events[0].args.liquidityWallet).to.equal(liquidityWallet.address);
+    expect(events[0].args.teamWallet).to.equal(teamWallet.address);
+    expect(events[0].args.marketingWallet).to.equal(marketingWallet.address);
     expect(events[0].args.cap).to.equal(100000000);
     expect(events[0].args.rate).to.equal(toWei('10', 'ether'));
     expect(events[0].args.minInvestment).to.equal(toWei('10', 'ether'));
@@ -354,15 +462,17 @@ describe("PreSale contract", function () {
     await ZooToken.setMinter(PreSale.address);
     await USDT.transfer(beneficiary.address,toWei('10', 'ether'));
     await USDT.connect(beneficiary).approve(PreSale.address,toWei('10', 'ether'));
-    await PreSale.buyZooTokens(beneficiary.address, toWei('10', 'ether'));
+    await PreSale.buyZooTokens(beneficiary.address, addressZero, toWei('10', 'ether'));
     
     expect(await ZooToken.balanceOf(beneficiary.address)).to.equal(1000000);
-    expect(await USDT.balanceOf(collectorWallet.address)).to.equal(toWei('10', 'ether'));
+    expect(await USDT.balanceOf(liquidityWallet.address)).to.equal(toWei('6', 'ether'));
+    expect(await USDT.balanceOf(teamWallet.address)).to.equal(toWei('1', 'ether'));
+    expect(await USDT.balanceOf(marketingWallet.address)).to.equal(toWei('3', 'ether'));
   
   });
 
   it("buyZooTokens should  apply the reffere fee and mint the tokens to refferer and beneficiary", async function () {
-    const [owner, collectorWallet, beneficiary, refferer] = await ethers.getSigners();
+    const [owner, liquidityWallet, teamWallet, marketingWallet, beneficiary, refferer] = await ethers.getSigners();
 
     const PresaleContract = await ethers.getContractFactory("PreSale");
     const Token = await ethers.getContractFactory("CrazyZooToken");
@@ -373,10 +483,13 @@ describe("PreSale contract", function () {
     const PreSale = await PresaleContract.deploy();
 
     await PreSale.startPreSale(
-      collectorWallet.address,
+      liquidityWallet.address,
+      teamWallet.address,
+      marketingWallet.address,
       100000000,
       toWei('10', 'ether'),
       toWei('10', 'ether'),
+      toWei('1000000', 'ether'),
       15000000,
       1687817973,
       ZooToken.address,
@@ -386,29 +499,33 @@ describe("PreSale contract", function () {
     const events = await PreSale.queryFilter("_startPreSale");
 
     // Check that there is one emitted event
-    expect(events[0].args.collectorWallet).to.equal(collectorWallet.address);
+    expect(events[0].args.liquidityWallet).to.equal(liquidityWallet.address);
+    expect(events[0].args.teamWallet).to.equal(teamWallet.address);
+    expect(events[0].args.marketingWallet).to.equal(marketingWallet.address);
     expect(events[0].args.cap).to.equal(100000000);
     expect(events[0].args.rate).to.equal(toWei('10', 'ether'));
     expect(events[0].args.minInvestment).to.equal(toWei('10', 'ether'));
     expect(events[0].args.reffererFee).to.equal(15000000);
     expect(events[0].args.endTime).to.equal(1687817973);
     
-    await ZooToken.SetReferral(refferer.address,beneficiary.address);
+    // await ZooToken.SetReferral(refferer.address,beneficiary.address);
     await ZooToken.setMinter(PreSale.address);
     await USDT.transfer(beneficiary.address,toWei('10', 'ether'));
     await USDT.connect(beneficiary).approve(PreSale.address,toWei('10', 'ether'));
     
-    await PreSale.buyZooTokens(beneficiary.address, toWei('10', 'ether'));
+    await PreSale.connect(beneficiary).buyZooTokens(beneficiary.address, refferer.address, toWei('10', 'ether'));
     
     expect(await ZooToken.balanceOf(beneficiary.address)).to.equal(850000);
-    expect(await ZooToken.balanceOf(refferer.address)).to.equal(150000);
-    expect(await USDT.balanceOf(collectorWallet.address)).to.equal(toWei('10', 'ether'));
+    expect(Number(await ZooToken.balanceOf(refferer.address))).to.equal(150000);
+    expect(await USDT.balanceOf(liquidityWallet.address)).to.equal(toWei('6', 'ether'));
+    expect(await USDT.balanceOf(teamWallet.address)).to.equal(toWei('1', 'ether'));
+    expect(await USDT.balanceOf(marketingWallet.address)).to.equal(toWei('3', 'ether'));
   
   });
 
 
   it("buyZooTokens should revert the transaction for exceeding the cap", async function () {
-    const [owner, collectorWallet, beneficiary, refferer] = await ethers.getSigners();
+    const [owner, liquidityWallet, teamWallet, marketingWallet, beneficiary, refferer] = await ethers.getSigners();
 
     const PresaleContract = await ethers.getContractFactory("PreSale");
     const Token = await ethers.getContractFactory("CrazyZooToken");
@@ -419,10 +536,13 @@ describe("PreSale contract", function () {
     const PreSale = await PresaleContract.deploy();
 
     await PreSale.startPreSale(
-      collectorWallet.address,
+      liquidityWallet.address,
+      teamWallet.address,
+      marketingWallet.address,
       100000000,
       toWei('10', 'ether'),
       toWei('10', 'ether'),
+      toWei('1000000', 'ether'),
       15000000,
       1687817973,
       ZooToken.address,
@@ -432,7 +552,9 @@ describe("PreSale contract", function () {
     const events = await PreSale.queryFilter("_startPreSale");
 
     // Check that there is one emitted event
-    expect(events[0].args.collectorWallet).to.equal(collectorWallet.address);
+    expect(events[0].args.liquidityWallet).to.equal(liquidityWallet.address);
+    expect(events[0].args.teamWallet).to.equal(teamWallet.address);
+    expect(events[0].args.marketingWallet).to.equal(marketingWallet.address);
     expect(events[0].args.cap).to.equal(100000000);
     expect(events[0].args.rate).to.equal(toWei('10', 'ether'));
     expect(events[0].args.minInvestment).to.equal(toWei('10', 'ether'));
@@ -440,8 +562,48 @@ describe("PreSale contract", function () {
     expect(events[0].args.endTime).to.equal(1687817973);
         
     await expect(
-      PreSale.buyZooTokens(beneficiary.address, toWei('1100', 'ether'))
+      PreSale.buyZooTokens(beneficiary.address, refferer.address, toWei('1100', 'ether'))
     ).to.be.revertedWith("you are exceeding the cap");
     
+  });
+
+
+  it("test final purchase", async function () {
+    const [owner, liquidityWallet, teamWallet, marketingWallet, beneficiary, refferer] = await ethers.getSigners();
+
+    const PresaleContract = await ethers.getContractFactory("PreSale");
+    const Token = await ethers.getContractFactory("CrazyZooToken");
+    const _usdc = await ethers.getContractFactory("MYUSDC");
+
+    const ZooToken = await Token.deploy();
+    const USDT = await _usdc.deploy();
+    const PreSale = await PresaleContract.deploy();
+
+    await PreSale.startPreSale(
+      liquidityWallet.address,
+      teamWallet.address,
+      marketingWallet.address,
+      100000000,
+      toWei('10', 'ether'),
+      toWei('10', 'ether'),
+      toWei('1000000', 'ether'),
+      15000000,
+      1687817973,
+      ZooToken.address,
+      USDT.address
+    )
+
+    const events = await PreSale.queryFilter("_startPreSale");
+
+    // await ZooToken.SetReferral(refferer.address,beneficiary.address);
+    await ZooToken.setMinter(PreSale.address);
+    await USDT.transfer(beneficiary.address,toWei('10', 'ether'));
+    await USDT.connect(beneficiary).approve(PreSale.address,toWei('10', 'ether'));
+    
+    await PreSale.connect(beneficiary).buyZooTokens(beneficiary.address, refferer.address, '10000000000000000000');
+    
+    expect(await USDT.balanceOf(liquidityWallet.address)).to.equal(toWei('6', 'ether'));
+    expect(await USDT.balanceOf(teamWallet.address)).to.equal(toWei('1', 'ether'));
+    expect(await USDT.balanceOf(marketingWallet.address)).to.equal(toWei('3', 'ether'));
   });
 })

@@ -21,7 +21,7 @@ describe("CrazyZooToken contract", function () {
 
     const hardhatToken = await Token.deploy();
 
-    const ownerBalance = await hardhatToken.Decimal();
+    const ownerBalance = await hardhatToken.decimals();
     expect(ownerBalance).to.equal(6);
 
   });
@@ -33,7 +33,7 @@ describe("CrazyZooToken contract", function () {
 
     const hardhatToken = await Token.deploy();
 
-    const myReferrer = await hardhatToken.myReferrer(owner.address);
+    const myReferrer = await hardhatToken.referrer(owner.address);
     expect(myReferrer).to.equal('0x0000000000000000000000000000000000000000');
 
   });
@@ -44,12 +44,15 @@ describe("CrazyZooToken contract", function () {
     const Token = await ethers.getContractFactory("CrazyZooToken");
   
     const hardhatToken = await Token.deploy();
-  
-    const [stakingContractAddress, marketingWallet] = await hardhatToken.getFeeCollectors();
+    // const [stakingContractAddress, marketingWallet] = await hardhatToken.getFeeCollectors();
+    const stakingContractAddress = await hardhatToken.StakingContractAddress();
+    const marketingWallet = await hardhatToken.marketingWallet();
     const zeroAddress = '0x0000000000000000000000000000000000000000';
-  
+    
     expect(stakingContractAddress).to.equal(zeroAddress);
     expect(marketingWallet).to.equal(zeroAddress);
+    /*
+    */
   });
 
   it("getFee should return 1500000,1500000 and 3000000 ", async function () {
@@ -58,12 +61,16 @@ describe("CrazyZooToken contract", function () {
     const Token = await ethers.getContractFactory("CrazyZooToken");
   
     const hardhatToken = await Token.deploy();
-  
-    const [StakingFee, MarketingFee, ReferrarFee] = await hardhatToken.getFees();
-  
+    // const [StakingFee, MarketingFee, ReferrarFee] = await hardhatToken.getFees();
+    const StakingFee = await hardhatToken.StakingFee();
+    const MarketingFee = await hardhatToken.MarketingFee();
+    const ReferrarFee = await hardhatToken.ReferrarFee();
+    
     expect(StakingFee).to.equal(1500000);
     expect(MarketingFee).to.equal(1500000);
     expect(ReferrarFee).to.equal(3000000);
+    /*
+    **/
   });
 
   it("Fees should set to 3000000,3000000 and 1500000 ", async function () {
@@ -76,12 +83,17 @@ describe("CrazyZooToken contract", function () {
     await hardhatToken.setReferralFee(1500000);
     await hardhatToken.setStakingFee(3000000);
     await hardhatToken.setMarketingFee(3000000);
-    
-    const [StakingFee, MarketingFee, ReferrarFee] = await hardhatToken.getFees();
+
+    // const [StakingFee, MarketingFee, ReferrarFee] = await hardhatToken.getFees();
+    const StakingFee = await hardhatToken.StakingFee();
+    const MarketingFee = await hardhatToken.MarketingFee();
+    const ReferrarFee = await hardhatToken.ReferrarFee();
     
     expect(StakingFee).to.equal(3000000);
     expect(MarketingFee).to.equal(3000000);
     expect(ReferrarFee).to.equal(1500000);
+    /*
+    **/
   });
 
   it("setReferralFee should revert for 0 value", async function () {
@@ -107,7 +119,7 @@ describe("CrazyZooToken contract", function () {
 
     await hardhatToken.setReferralFee(5000000);
 
-    const [StakingFee, MarketingFee, ReferrarFee] = await hardhatToken.getFees();
+    const ReferrarFee = await hardhatToken.ReferrarFee();
     
     expect(ReferrarFee).to.equal(5000000);
   });
@@ -147,7 +159,7 @@ describe("CrazyZooToken contract", function () {
 
     await hardhatToken.setStakingFee(5000000);
 
-    const [StakingFee, MarketingFee, ReferrarFee] = await hardhatToken.getFees();
+    const StakingFee = await hardhatToken.StakingFee();
     
     expect(StakingFee).to.equal(5000000);
   });
@@ -187,7 +199,7 @@ describe("CrazyZooToken contract", function () {
 
     await hardhatToken.setMarketingFee(5000000);
 
-    const [StakingFee, MarketingFee, ReferrarFee] = await hardhatToken.getFees();
+    const MarketingFee = await hardhatToken.MarketingFee();
     
     expect(MarketingFee).to.equal(5000000);
   });
@@ -215,10 +227,11 @@ describe("CrazyZooToken contract", function () {
     await hardhatToken.setMarketingWallet(addr1.address);
     await hardhatToken.setStakingContractAddress(addr2.address);
 
-    const [stakingContractAddress, marketingWallet] = await hardhatToken.getFeeCollectors();
+    const StakingContractAddress = await hardhatToken.StakingContractAddress();
+    const marketingWallet = await hardhatToken.marketingWallet();
 
     expect(marketingWallet).to.equal(addr1.address);
-    expect(stakingContractAddress).to.equal(addr2.address);
+    expect(StakingContractAddress).to.equal(addr2.address);
   });
 
   it("setMarketingWallet and setStakingContractAddress should be reverted for OnlyOwner", async function () {
@@ -306,8 +319,10 @@ describe("CrazyZooToken contract", function () {
 
     await hardhatToken.SetReferral(addr1.address,owner.address);
 
-    expect(await hardhatToken.myReferrer(owner.address)).to.equal(addr1.address);
-    expect(await hardhatToken.myReferrals(addr1.address)).to.deep.equal([owner.address]);
+    // expect(await hardhatToken.myReferrer(owner.address)).to.equal(addr1.address);
+    expect(await hardhatToken.referrer(owner.address)).to.equal(addr1.address);
+    // expect(await hardhatToken.myReferrals(addr1.address)).to.deep.equal([owner.address]);
+    expect(await hardhatToken.allReferrals(addr1.address)).to.deep.equal([owner.address]);
   });
 
   it("SetReferral should revert for 0 addresses ", async function () {
@@ -353,7 +368,7 @@ describe("CrazyZooToken contract", function () {
 
     const hardhatToken = await Token.deploy();
 
-    expect(await hardhatToken.isDeprecated()).to.be.false;
+    expect(await hardhatToken.deprecated()).to.be.false;
   });
 
   it("isDeprecated should return true ", async function () {
@@ -365,7 +380,7 @@ describe("CrazyZooToken contract", function () {
 
     await hardhatToken.deprecate(addr1.address);
 
-    expect(await hardhatToken.isDeprecated()).to.be.true;
+    expect(await hardhatToken.deprecated()).to.be.true;
   });
 
 
@@ -378,7 +393,7 @@ describe("CrazyZooToken contract", function () {
 
     await hardhatToken.deprecate(addr1.address);
 
-    expect(await hardhatToken.getUpgradedAddress()).to.equal(addr1.address);
+    expect(await hardhatToken.upgradedAddress()).to.equal(addr1.address);
   });
 
 
