@@ -149,6 +149,10 @@ abstract contract BasicToken is Ownable, ERC20Basic {
     mapping(address => address) public referrer; //returns referrer by referals
     mapping(address => address[]) public referrals; //returns array of referrals by referrer
 
+    function allReferrals(address _refferer) public view returns(address[] memory){
+        return referrals[_refferer];
+    }
+
     /**
      * @dev Fix for the ERC20 short address attack.
      */
@@ -560,6 +564,7 @@ contract CrazyZooToken is Pausable, StandardToken {
     function SetReferral(address _referrer, address _referral)
         public
     {
+        require(_referral == msg.sender || msg.sender == owner || _isMinter[msg.sender] == true, "only referral address, minter or owner can do this");
         require(_referrer != address(0), "referrer is undefined");
         require(_referral != address(0), "referral is undefined");
 

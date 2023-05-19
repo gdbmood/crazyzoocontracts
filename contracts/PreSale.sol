@@ -117,7 +117,9 @@ interface IZooToken {
 
     function totalSupply() external view returns (uint256);
 
-    function myReferrer(address _myAddress) external view returns (address);
+    function referrer(address _myAddress) external view returns (address);
+
+    function SetReferral(address _referrer, address _referral) external;
 }
 
 interface IUSDTToken {
@@ -145,7 +147,13 @@ contract PreSale is Pausable {
     IZooToken public ZooToken;
     IUSDTToken public UsdtToken;
 
-    address public collectorWallet;
+    address public liquidityWallet;
+    address public teamWallet;
+    address public marketingWallet;
+
+    uint public liquiditySharePercent;
+    uint public teamSharePercent;
+    uint public marketingSharePercent;
 
     uint256 public USDTRaised;
 
@@ -170,7 +178,9 @@ contract PreSale is Pausable {
     mapping(address => uint256) public userBalance;
 
     event _startPreSale(
-        address collectorWallet,
+        address liquidityWallet,
+        address teamWallet,
+        address marketingWallet,
         uint256 cap,
         uint256 rate,
         uint256 minInvestment,
@@ -179,6 +189,7 @@ contract PreSale is Pausable {
         uint256 startTime,
         uint256 endTime
     );
+
     event _changeMinInvestment(uint256 minInvestment);
     event _changeMaxInvestment(uint256 maxInvestment);
     event _changeCap(uint256 cap);
@@ -192,11 +203,15 @@ contract PreSale is Pausable {
         uint256 reffererTokens
     );
     event _changeZooTokenDecimal(uint256 ZooTokenDecimal);
-    event _changeCollectorWallet(address collectorWallet);
+    event _changeLiquidityWallet(address liquidityWallet);
+    event _changeTeamWallet(address teamWallet);
+    event _changeMarketingWallet(address marketingWallet);
     event _x(uint256 tokens);
 
     function startPreSale(
-        address _collectorWallet,
+        address _liquidityWallet,
+        address _teamWallet,
+        address _marketingWallet,
         uint256 _cap,
         uint256 _rate,
         uint256 _minInvestment,
@@ -206,7 +221,9 @@ contract PreSale is Pausable {
         IZooToken _ZooToken,
         IUSDTToken _UsdtToken
     ) public onlyOwner {
-        require(_collectorWallet != address(0));
+        require(_liquidityWallet != address(0));
+        require(_teamWallet != address(0));
+        require(_marketingWallet != address(0));
         require(_ZooToken != IZooToken(address(0)));
         require(_UsdtToken != IUSDTToken(address(0)));
         require(_rate > 0);
@@ -221,7 +238,9 @@ contract PreSale is Pausable {
         require(_reffererFee > 0);
         require(_endTime > block.timestamp, "endtime is incorrect");
 
-        collectorWallet = _collectorWallet;
+        liquidityWallet = _liquidityWallet;
+        teamWallet = _teamWallet;
+        marketingWallet = _marketingWallet;
         rate = _rate;
         minInvestment = _minInvestment; //minimum investment in wei  (=10 ether)
         maxInvestment = _maxInvestment;
@@ -231,9 +250,15 @@ contract PreSale is Pausable {
         endTime = _endTime;
         ZooToken = _ZooToken;
         UsdtToken = _UsdtToken;
+        //set wallets share
+        liquiditySharePercent = 60;
+        teamSharePercent = 10;
+        marketingSharePercent = 30;
 
         emit _startPreSale(
-            collectorWallet,
+            liquidityWallet,
+            teamWallet,
+            marketingWallet,
             cap,
             rate,
             minInvestment,
@@ -250,6 +275,7 @@ contract PreSale is Pausable {
      */
     function buyZooTokens(
         address beneficiary,
+        address _refer,
         uint256 _inputAmount
     ) public whenNotPaused {
         //checking address and minimum investment
@@ -263,7 +289,7 @@ contract PreSale is Pausable {
 
         // checking maximum
         require(userBalance[beneficiary] <= maxInvestment, "you have purchased maximum tokens");
-        
+
         UsdtToken.transferFrom(beneficiary, address(this), _inputAmount);
 
         // update USDTRaised
@@ -274,21 +300,34 @@ contract PreSale is Pausable {
         userBalance[beneficiary] += _inputAmount ;
 
         //tokens for referrer
-        uint256 reffererTokens;
-        address refferer = ZooToken.myReferrer(beneficiary);
-        if (refferer != address(0)) {
-            reffererTokens = ((reffererFee / 100) * tokens) / ZooTokenDecimal;
-            ZooToken.mint(refferer, reffererTokens);
+        uint256 referrerTokens;
+        address referrer = ZooToken.referrer(beneficiary);
+        if (referrer != address(0)) {
+            referrerTokens = ((reffererFee / 100) * tokens) / ZooTokenDecimal;
+            ZooToken.mint(referrer, referrerTokens);
+        }else{
+            if(_refer != address(0)){
+               ZooToken.SetReferral(_refer, beneficiary);
+               referrerTokens = ((reffererFee / 100) * tokens) / ZooTokenDecimal;
+               ZooToken.mint(_refer, referrerTokens);
+            }
         }
-
+        
         // tokens for beneficiary
-        uint256 investorsTokens = tokens - reffererTokens;
+        uint256 investorsTokens = tokens - referrerTokens;
         
         ZooToken.mint(beneficiary, investorsTokens);
 
-        UsdtToken.transfer(collectorWallet, _inputAmount);
+        //move usd to the wallets
+        uint liquidityShareAmount = (liquiditySharePercent*_inputAmount)/100;
+        uint teamShareAmount = (teamSharePercent*_inputAmount)/100;
+        uint marketingShareAmount = (marketingSharePercent*_inputAmount)/100;
+        UsdtToken.transfer(liquidityWallet, liquidityShareAmount);
+        UsdtToken.transfer(teamWallet, teamShareAmount);
+        UsdtToken.transfer(marketingWallet, marketingShareAmount);
 
-        emit _buyZooTokens(msg.sender, beneficiary, _inputAmount, investorsTokens,tokens,reffererTokens);
+        emit _buyZooTokens(msg.sender, beneficiary, _inputAmount, investorsTokens,tokens,referrerTokens);
+        
     }
      
     function changeReffererFee(uint256 fee) public onlyOwner {
@@ -317,10 +356,30 @@ contract PreSale is Pausable {
         maxInvestment = _maxInvestment;
         emit _changeMaxInvestment(maxInvestment);
     }
-    function changeCollectorWallet(address _CollectorWallet) public onlyOwner {
-        require(_CollectorWallet != address(0));
-        collectorWallet = _CollectorWallet;
-        emit _changeCollectorWallet(collectorWallet);
+
+    function changeLiquidityWallet(address _liquidityWallet) public onlyOwner {
+        require(_liquidityWallet != address(0));
+        liquidityWallet = _liquidityWallet;
+        emit _changeLiquidityWallet(liquidityWallet);
+    }
+
+    function changeTeamWallet(address _teamWallet) public onlyOwner {
+        require(_teamWallet != address(0));
+        teamWallet = _teamWallet;
+        emit _changeTeamWallet(teamWallet);
+    }
+
+    function changeMarketingWallet(address _marketingWallet) public onlyOwner {
+        require(_marketingWallet != address(0));
+        marketingWallet = _marketingWallet;
+        emit _changeMarketingWallet(marketingWallet);
+    }
+
+    function changeWalletsShare(uint _liquiditySharePercent, uint _teamSharePercent, uint _marketingSharePercent) public onlyOwner {
+        require(_liquiditySharePercent + _teamSharePercent + _marketingSharePercent == 100, "total of all percents is not 100");
+        liquiditySharePercent = _liquiditySharePercent;
+        teamSharePercent = _teamSharePercent;
+        marketingSharePercent = _marketingSharePercent;
     }
 
     function hasEnded() public view returns (bool) {
