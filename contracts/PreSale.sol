@@ -150,10 +150,12 @@ contract PreSale is Pausable {
     address public liquidityWallet;
     address public teamWallet;
     address public marketingWallet;
+    address public slipageFeeWallet;
 
-    uint public liquiditySharePercent;
-    uint public teamSharePercent;
-    uint public marketingSharePercent;
+    uint public liquiditySharePercent; // 600/1000 = 60%
+    uint public teamSharePercent; // 100/1000 = 10%
+    uint public marketingSharePercent; // 235/1000 = 23.5%
+    uint public slipageFeeSharePercent; // 65/1000 = 6.5%
 
     uint256 public USDTRaised;
 
@@ -181,6 +183,7 @@ contract PreSale is Pausable {
         address liquidityWallet,
         address teamWallet,
         address marketingWallet,
+        address slipageFeeWallet,
         uint256 cap,
         uint256 rate,
         uint256 minInvestment,
@@ -206,12 +209,14 @@ contract PreSale is Pausable {
     event _changeLiquidityWallet(address liquidityWallet);
     event _changeTeamWallet(address teamWallet);
     event _changeMarketingWallet(address marketingWallet);
+    event _changeSlipageFeeWallet(address slipageFeeWallet);
     event _x(uint256 tokens);
 
     function startPreSale(
         address _liquidityWallet,
         address _teamWallet,
         address _marketingWallet,
+        address _slipageFeeWallet,
         uint256 _cap,
         uint256 _rate,
         uint256 _minInvestment,
@@ -221,11 +226,12 @@ contract PreSale is Pausable {
         IZooToken _ZooToken,
         IUSDTToken _UsdtToken
     ) public onlyOwner {
-        require(_liquidityWallet != address(0));
-        require(_teamWallet != address(0));
-        require(_marketingWallet != address(0));
-        require(_ZooToken != IZooToken(address(0)));
-        require(_UsdtToken != IUSDTToken(address(0)));
+        require(_liquidityWallet != address(0), "liquidity wallet can not be zero address");
+        require(_teamWallet != address(0), "team wallet can not be zero address");
+        require(_marketingWallet != address(0), "marketing wallet can not be zero address");
+        require(_slipageFeeWallet != address(0), "marketing wallet can not be zero address");
+        require(_ZooToken != IZooToken(address(0)), "zoo token can not be zero address");
+        require(_UsdtToken != IUSDTToken(address(0)), "usdt token can not be zero address");
         require(_rate > 0);
         require(
             _minInvestment >= _rate,
@@ -241,6 +247,7 @@ contract PreSale is Pausable {
         liquidityWallet = _liquidityWallet;
         teamWallet = _teamWallet;
         marketingWallet = _marketingWallet;
+        slipageFeeWallet = _slipageFeeWallet;
         rate = _rate;
         minInvestment = _minInvestment; //minimum investment in wei  (=10 ether)
         maxInvestment = _maxInvestment;
@@ -251,14 +258,16 @@ contract PreSale is Pausable {
         ZooToken = _ZooToken;
         UsdtToken = _UsdtToken;
         //set wallets share
-        liquiditySharePercent = 60;
-        teamSharePercent = 10;
-        marketingSharePercent = 30;
+        liquiditySharePercent = 600;
+        teamSharePercent = 100;
+        marketingSharePercent = 235;
+        slipageFeeSharePercent = 65;
 
         emit _startPreSale(
             liquidityWallet,
             teamWallet,
             marketingWallet,
+            slipageFeeWallet,
             cap,
             rate,
             minInvestment,
@@ -279,7 +288,7 @@ contract PreSale is Pausable {
         uint256 _inputAmount
     ) public whenNotPaused {
         //checking address and minimum investment
-        require(beneficiary != address(0));
+        require(beneficiary != address(0), "beneficiary can not be zero address");
         require(_inputAmount >= minInvestment);
         require(block.timestamp < endTime,"sale has ended");
 
@@ -319,12 +328,14 @@ contract PreSale is Pausable {
         ZooToken.mint(beneficiary, investorsTokens);
 
         //move usd to the wallets
-        uint liquidityShareAmount = (liquiditySharePercent*_inputAmount)/100;
-        uint teamShareAmount = (teamSharePercent*_inputAmount)/100;
-        uint marketingShareAmount = (marketingSharePercent*_inputAmount)/100;
+        uint liquidityShareAmount = (liquiditySharePercent*_inputAmount)/1000;
+        uint teamShareAmount = (teamSharePercent*_inputAmount)/1000;
+        uint marketingShareAmount = (marketingSharePercent*_inputAmount)/1000;
+        uint slipageFeeShareAmount = (slipageFeeSharePercent*_inputAmount)/1000;
         UsdtToken.transfer(liquidityWallet, liquidityShareAmount);
         UsdtToken.transfer(teamWallet, teamShareAmount);
         UsdtToken.transfer(marketingWallet, marketingShareAmount);
+        UsdtToken.transfer(slipageFeeWallet, slipageFeeShareAmount);
 
         emit _buyZooTokens(msg.sender, beneficiary, _inputAmount, investorsTokens,tokens,referrerTokens);
         
@@ -344,42 +355,49 @@ contract PreSale is Pausable {
     }
 
     function changeMinInvestment(uint256 _minInvestment) public onlyOwner {
-        require(_minInvestment >= rate);
+        require(_minInvestment >= rate, "minimum investment should be more than rate");
 
         minInvestment = _minInvestment;
         emit _changeMinInvestment(minInvestment);
     }
 
     function changeMaxInvestment(uint256 _maxInvestment) public onlyOwner {
-        require(_maxInvestment > minInvestment);
+        require(_maxInvestment > minInvestment, "max investment should be more than min investment");
 
         maxInvestment = _maxInvestment;
         emit _changeMaxInvestment(maxInvestment);
     }
 
     function changeLiquidityWallet(address _liquidityWallet) public onlyOwner {
-        require(_liquidityWallet != address(0));
+        require(_liquidityWallet != address(0),"liquidity wallet can not be zero address");
         liquidityWallet = _liquidityWallet;
         emit _changeLiquidityWallet(liquidityWallet);
     }
 
     function changeTeamWallet(address _teamWallet) public onlyOwner {
-        require(_teamWallet != address(0));
+        require(_teamWallet != address(0), "team wallet can not be zero address");
         teamWallet = _teamWallet;
         emit _changeTeamWallet(teamWallet);
     }
 
     function changeMarketingWallet(address _marketingWallet) public onlyOwner {
-        require(_marketingWallet != address(0));
+        require(_marketingWallet != address(0), "marketing wallet can not be zero address");
         marketingWallet = _marketingWallet;
         emit _changeMarketingWallet(marketingWallet);
     }
 
-    function changeWalletsShare(uint _liquiditySharePercent, uint _teamSharePercent, uint _marketingSharePercent) public onlyOwner {
-        require(_liquiditySharePercent + _teamSharePercent + _marketingSharePercent == 100, "total of all percents is not 100");
+    function changeSlipageFeeWallet(address _slipageFeeWallet) public onlyOwner {
+        require(_slipageFeeWallet != address(0), "slipage wallet can not be zero address");
+        slipageFeeWallet = _slipageFeeWallet;
+        emit _changeSlipageFeeWallet(slipageFeeWallet);
+    }
+
+    function changeWalletsShare(uint _liquiditySharePercent, uint _teamSharePercent, uint _marketingSharePercent, uint _slipageFeeSharePercent) public onlyOwner {
+        require(_liquiditySharePercent + _teamSharePercent + _marketingSharePercent + _slipageFeeSharePercent == 1000, "total of all percents is not 1000");
         liquiditySharePercent = _liquiditySharePercent;
         teamSharePercent = _teamSharePercent;
         marketingSharePercent = _marketingSharePercent;
+        slipageFeeSharePercent = _slipageFeeSharePercent;
     }
 
     function hasEnded() public view returns (bool) {
