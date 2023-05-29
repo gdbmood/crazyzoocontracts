@@ -42,7 +42,7 @@ module.exports = {
       accounts: [process.env.MUMBAI_PRIVATE_KEY],
     },
     arbitrum: {
-      url: "https://arb-goerli.g.alchemy.com/v2/pCXGTOX5cerPI87r5_a_IGJsclHxk6kj",
+      url: process.env.ARBITRUM_MAINNET_URL,
       accounts: [process.env.MUMBAI_PRIVATE_KEY],
     },
   },

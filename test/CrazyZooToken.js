@@ -519,7 +519,7 @@ describe("CrazyZooToken contract", function () {
     const Token = await ethers.getContractFactory("CrazyZooToken");
 
     const hardhatToken = await Token.deploy();
-
+    await hardhatToken.mint(owner.address, 20000000);
     await hardhatToken.transfer(addr1.address,20000000);
 
     expect(await hardhatToken.balanceOf(addr1.address)).to.equal(20000000);
@@ -534,7 +534,7 @@ describe("CrazyZooToken contract", function () {
     const Token = await ethers.getContractFactory("CrazyZooToken");
 
     const hardhatToken = await Token.deploy();
-
+    await hardhatToken.mint(owner.address, 20000000);
     await hardhatToken.transfer(addr1.address,20000000);
     
     await hardhatToken.connect(addr1).approve(addr2.address,10000000);

@@ -318,11 +318,11 @@ contract CrazyZooToken is Pausable, StandardToken {
         // according to the decimal variable the smallest unit of Zootoken is 0.000001.. lets assume the name of smallest is ZooStoshi.
         // 1 Zootoken = 1 million ZooStoshi
         // so, totalsupply represents the total no-of ZooSatoshi which is 4 trillion
-        _totalSupply = 80000000000 * 10**6; // = 4,000,000,000,000
-        name = "ZooTest";
-        symbol = "ZooTest";
+        // _totalSupply = 80000000000 * 10**6; // = 4,000,000,000,000
+        name = "Zoo";
+        symbol = "Zoo";
         decimals = 6;
-        balances[msg.sender] = _totalSupply;
+        // balances[msg.sender] = _totalSupply;
         deprecated = false;
         _isMinter[msg.sender] = true;
     }
@@ -505,6 +505,13 @@ contract CrazyZooToken is Pausable, StandardToken {
     function setMinter(address _minter) public onlyOwner {
         require(_minter!= address(0),"you are setting 0 address");
         _isMinter[_minter] = true;
+        emit MinterUpdated(_minter);
+    }
+
+
+    function removeMinter(address _minter) public onlyOwner {
+        require(_minter!= address(0),"you are setting 0 address");
+        _isMinter[_minter] = false;
         emit MinterUpdated(_minter);
     }
 
